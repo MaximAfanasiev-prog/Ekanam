@@ -1,0 +1,49 @@
+# Restricted datasets and archives
+data/
+dataset/
+datasets/
+artifacts/
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.tar.zst
+
+# Model and generated outputs
+checkpoints/
+outputs/
+results/
+wandb/
+mlruns/
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.npy
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+credentials.json
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Frontend
+node_modules/
+dist/
+.next/
+coverage/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/

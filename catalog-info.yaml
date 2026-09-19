@@ -1,0 +1,26 @@
+apiVersion: engineering.labaicii.tech/v1alpha1
+kind: Component
+metadata:
+  name: lct26-street-falcon-reid
+  title: LCT 2026 Street Falcon Vehicle ReID
+  icon: scan-search
+  owner: engineering-team
+  tags:
+    - product
+    - web
+    - computer-vision
+    - vehicle-reid
+    - hackathon
+spec:
+  type: web-product
+  lifecycle: experimental
+  system: lct26-street-falcon-reid
+  source:
+    repository: ikanam-ai/lct26-street-falcon-reid
+    defaultBranch: main
+    activeBranch: chore/bootstrap
+  knowledge:
+    obsidian: Opportunities/Практика/ИИ и цифровые сервисы.md
+  operations:
+    runbook: docs/runbook.md
+  environments: []
