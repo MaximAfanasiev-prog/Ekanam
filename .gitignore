@@ -12,7 +12,7 @@ artifacts/
 # Model and generated outputs
 checkpoints/
 outputs/
-results/
+/results/
 wandb/
 mlruns/
 *.ckpt
