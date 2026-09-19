@@ -44,7 +44,9 @@ def extract_embeddings(
         shuffle=False,
         num_workers=workers,
         pin_memory=device.type == "cuda",
-        persistent_workers=workers > 0,
+        # This loader is recreated for query and gallery validation every epoch.
+        # Persistent workers would survive long enough to exhaust file descriptors.
+        persistent_workers=False,
     )
     embeddings: list[np.ndarray] = []
     image_ids: list[str] = []
