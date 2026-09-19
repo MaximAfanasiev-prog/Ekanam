@@ -4,8 +4,8 @@
 
 В репозитории реализован воспроизводимый модельный baseline: подготовка архива,
 identity-disjoint validation, обучение, калибровка отказа, инференс, проверка и
-упаковка submission. Постоянного deployment, API и браузерного интерфейса пока
-нет. Доступность каких-либо сервисов не заявляется.
+упаковка submission. Локальная read-only веб-панель отображает сохранённый
+результат, но не является публичным или production deployment.
 
 ## Требования
 
@@ -54,6 +54,36 @@ docker compose run --rm baseline run \
 Финальный score нельзя получить локально: официальный ground truth скрыт.
 `evaluate.py` применяется организаторами после подачи.
 
+## Веб-панель
+
+Панель использует `history.jsonl`, `split.json`, validation report и файлы
+submission. Исходные изображения читаются из закрытого каталога и отдаются
+только через локальный HTTP endpoint контейнера.
+
+```bash
+export LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid
+export LCT_RUN_ID=resnet50-baseline-93f4287
+export LCT_WEB_PORT=27810
+export LOCAL_UID=$(id -u)
+export LOCAL_GID=$(id -g)
+
+docker compose up -d dashboard
+docker compose ps dashboard
+curl --fail http://127.0.0.1:27810/api/health
+```
+
+Остановить панель без удаления результатов:
+
+```bash
+docker compose stop dashboard
+```
+
+Порт привязан к `127.0.0.1`; внешний доступ возможен только через отдельный
+SSH-туннель. В интерфейсе обязательно показывается граница интерпретации:
+identity-disjoint validation не является скрытым leaderboard score, а для test
+gallery нет ground truth, поэтому top-10 нельзя маркировать как верный или
+ошибочный.
+
 ## Повторный инференс
 
 ```bash
@@ -79,7 +109,8 @@ docker compose run --rm baseline infer \
 
 ## Граница доставки
 
-Прямой deployment не разрешён. Development и production environments в
-`catalog-info.yaml` не зарегистрированы. API, веб-интерфейс и GitOps-доставка
-добавляются отдельным PR после определения namespace, data boundary, health
-endpoint и процедуры приёмки.
+Публичный deployment не разрешён. Development и production environments в
+`catalog-info.yaml` не зарегистрированы. Текущая панель работает только на
+loopback-интерфейсе сервера с read-only mount данных. Публикация, GitOps-доставка
+или общий сетевой доступ требуют отдельного решения по namespace, data boundary
+и процедуре приёмки.

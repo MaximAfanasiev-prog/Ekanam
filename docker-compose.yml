@@ -13,3 +13,40 @@ services:
       TORCH_HOME: /data/cache/torch
     volumes:
       - ${LCT_DATA_DIR:?Set LCT_DATA_DIR to the restricted dataset directory}:/data
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lct26-street-falcon-reid:baseline
+    restart: unless-stopped
+    read_only: true
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    environment:
+      HOME: /tmp
+    command:
+      - web
+      - --data-dir
+      - /data/extracted
+      - --run-dir
+      - /data/runs/${LCT_RUN_ID:-resnet50-baseline-93f4287}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+    ports:
+      - 127.0.0.1:${LCT_WEB_PORT:-27810}:8080
+    volumes:
+      - ${LCT_DATA_DIR:?Set LCT_DATA_DIR to the restricted dataset directory}:/data:ro
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

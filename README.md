@@ -17,6 +17,7 @@
 - подбор порога отказа по validation F1;
 - формирование `submission.csv`, `candidates.csv` и `embeddings.npy`;
 - проверка формата результата и упаковка submission;
+- локальная веб-панель с метриками, графиками и просмотром top-10;
 - GPU Docker-окружение и одна команда для полного прогона.
 
 Первый полный прогон на ревизии `93f4287` завершён. На identity-disjoint
@@ -130,6 +131,31 @@ street-falcon-reid verify \
   --output-dir "$LCT_DATA_DIR/runs/resnet50-baseline/submission"
 ```
 
+## Веб-панель результатов
+
+Панель читает уже сформированные артефакты и не запускает повторное обучение.
+На сервере она публикуется только на loopback-интерфейсе:
+
+```bash
+export LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid
+export LCT_RUN_ID=resnet50-baseline-93f4287
+export LCT_WEB_PORT=27810
+export LOCAL_UID=$(id -u)
+export LOCAL_GID=$(id -g)
+
+docker compose up -d dashboard
+curl --fail http://127.0.0.1:27810/api/health
+```
+
+Для просмотра со своего компьютера откройте SSH-туннель:
+
+```bash
+ssh -N -L 8780:127.0.0.1:27810 home_in
+```
+
+После этого интерфейс доступен по адресу `http://127.0.0.1:8780`. Датасет
+монтируется в контейнер в режиме read-only, а наружу порт не публикуется.
+
 Официальный `evaluate.py` требует скрытый ground truth, поэтому локально им
 нельзя получить финальный leaderboard score. Собственная validation использует
 тот же контракт `mAP@10`, Rank-1, Rank-5 и режим отказа.
@@ -161,5 +187,5 @@ Smoke-конфигурация использует малую подвыбор�
 - checksum итогового checkpoint и submission-файлов.
 
 Рабочий профиль репозитория — `research-python`; Engineering Standards закреплены
-на версии `0.2.9`. API и браузерный интерфейс могут появиться отдельным проектным
-этапом, но не входят в контракт этого baseline и не заявлены как готовые.
+на версии `0.2.9`. Веб-панель является внутренним read-only представлением
+артефактов baseline и не меняет исследовательский контракт или статус метрик.
