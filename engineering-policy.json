@@ -1,7 +1,7 @@
 {
   "apiVersion": "engineering.labaicii.tech/repository-policy/v1alpha1",
   "kind": "RepositoryPolicy",
-  "profile": "web-product",
+  "profile": "research-python",
   "failOn": "warning",
   "exceptions": []
 }

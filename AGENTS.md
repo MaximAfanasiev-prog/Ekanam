@@ -3,7 +3,7 @@
 Read `catalog-info.yaml`, `engineering-policy.json`, `README.md`,
 `docs/data.md` and `docs/runbook.md` before editing.
 
-State a standards preflight with the `web-product` profile, pinned Engineering
+State a standards preflight with the `research-python` profile, pinned Engineering
 Standards release, affected environment, data boundary, registered exceptions
 and required evidence. Work in an isolated branch and deliver changes through a
 Pull Request. Do not commit organizer data, images, embeddings, model weights,
