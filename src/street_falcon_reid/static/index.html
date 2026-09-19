@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f0f0f8">
+    <title>Street Falcon — результаты Vehicle ReID</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">К содержимому</a>
+    <div class="ambient ambient-one" aria-hidden="true"></div>
+    <div class="ambient ambient-two" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Street Falcon — главная">
+        <span class="brand-mark" aria-hidden="true">SF</span>
+        <span>
+          <strong>Street Falcon</strong>
+          <small>Vehicle ReID · LCT 2026</small>
+        </span>
+      </a>
+      <div class="header-meta">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="release-label">Загрузка результата…</span>
+      </div>
+    </header>
+
+    <main id="main" class="page-shell">
+      <section id="loading-state" class="state-card" aria-live="polite">
+        <span class="loader" aria-hidden="true"></span>
+        <div>
+          <strong>Загружаем прогон</strong>
+          <p>Проверяем метрики и собираем галерею.</p>
+        </div>
+      </section>
+
+      <section id="error-state" class="state-card error-state" hidden role="alert">
+        <span class="state-icon" aria-hidden="true">!</span>
+        <div>
+          <strong>Результаты пока недоступны</strong>
+          <p id="error-message">Сервис не смог прочитать файлы прогона.</p>
+          <button id="retry-button" class="button button-dark" type="button">Повторить</button>
+        </div>
+      </section>
+
+      <div id="dashboard" hidden>
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="eyebrow">Baseline report · local validation</p>
+            <h1 id="hero-title">Машину можно найти снова.</h1>
+            <p class="hero-lead">
+              ResNet-50 сопоставляет автомобиль между камерами по визуальному
+              представлению bounding box — без использования госномеров.
+            </p>
+            <div class="hero-tags">
+              <span class="tag" id="model-tag">ResNet-50</span>
+              <span class="tag" id="device-tag">A6000</span>
+              <span class="tag">Open-set отказ</span>
+            </div>
+          </div>
+          <aside class="boundary-card" aria-label="Граница интерпретации">
+            <span class="boundary-label">Важно</span>
+            <strong>Это validation, не leaderboard.</strong>
+            <p id="boundary-text"></p>
+            <small id="completed-at"></small>
+          </aside>
+        </section>
+
+        <section class="metrics-section" aria-labelledby="metrics-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Лучший checkpoint</p>
+              <h2 id="metrics-title">Качество поиска</h2>
+            </div>
+            <p id="best-epoch" class="section-note"></p>
+          </div>
+          <div id="metric-grid" class="metric-grid"></div>
+        </section>
+
+        <section class="chart-grid" aria-label="Динамика обучения">
+          <article class="panel chart-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">30 эпох</p>
+                <h2>Retrieval quality</h2>
+              </div>
+              <div class="legend" aria-label="Легенда">
+                <span><i class="legend-dot blue"></i>mAP@10</span>
+                <span><i class="legend-dot violet"></i>Rank-1</span>
+                <span><i class="legend-dot charcoal"></i>Rank-5</span>
+              </div>
+            </div>
+            <div id="quality-chart" class="chart" role="img" aria-label="График качества по эпохам"></div>
+          </article>
+
+          <article class="panel chart-panel loss-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Optimization</p>
+                <h2>Training loss</h2>
+              </div>
+              <span id="loss-delta" class="delta"></span>
+            </div>
+            <div id="loss-chart" class="chart" role="img" aria-label="График функции потерь по эпохам"></div>
+          </article>
+        </section>
+
+        <section class="explorer-section" aria-labelledby="explorer-title">
+          <div class="section-heading explorer-heading">
+            <div>
+              <p class="eyebrow">Test submission explorer</p>
+              <h2 id="explorer-title">Что видит модель</h2>
+              <p class="section-description">
+                Выберите query и посмотрите top-10 по cosine similarity. Скрытая
+                разметка test недоступна, поэтому здесь нет меток «верно/неверно».
+              </p>
+            </div>
+            <div class="query-controls">
+              <label for="query-select">Query</label>
+              <div class="select-row">
+                <button id="previous-query" class="icon-button" type="button" aria-label="Предыдущий query">←</button>
+                <select id="query-select" aria-label="Выбрать query"></select>
+                <button id="next-query" class="icon-button" type="button" aria-label="Следующий query">→</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="query-loading" class="query-state" hidden aria-live="polite">
+            <span class="loader loader-small" aria-hidden="true"></span>
+            Загружаем кандидатов…
+          </div>
+          <div id="query-error" class="query-state query-error" hidden role="alert"></div>
+          <div id="query-empty" class="query-state" hidden>Для этого query кандидаты не сформированы.</div>
+
+          <div id="retrieval-view" class="retrieval-view" hidden>
+            <article class="query-card">
+              <div class="image-frame query-image-frame">
+                <img id="query-image" alt="Выбранный query автомобиля">
+                <span class="image-label">Query</span>
+              </div>
+              <div class="query-copy">
+                <div class="decision-line">
+                  <span id="decision-badge" class="decision-badge"></span>
+                  <span id="query-position" class="query-position"></span>
+                </div>
+                <h3 id="query-id"></h3>
+                <p id="decision-copy"></p>
+                <dl class="query-facts">
+                  <div><dt>Порог отказа</dt><dd id="threshold-value"></dd></div>
+                  <div><dt>Лучший score</dt><dd id="top-score"></dd></div>
+                </dl>
+              </div>
+            </article>
+            <div>
+              <div class="gallery-title-row">
+                <h3>Top-10 gallery</h3>
+                <span>cosine similarity</span>
+              </div>
+              <ol id="gallery-grid" class="gallery-grid"></ol>
+            </div>
+          </div>
+        </section>
+
+        <section class="method-section" aria-labelledby="method-title">
+          <div>
+            <p class="eyebrow">Method & provenance</p>
+            <h2 id="method-title">Как читать результат</h2>
+          </div>
+          <div class="method-grid">
+            <article class="method-card">
+              <span class="method-number">01</span>
+              <h3>Честный split</h3>
+              <p>Идентичности train и validation не пересекаются. Closed-set positives сняты с другой камеры.</p>
+              <dl id="split-facts" class="compact-facts"></dl>
+            </article>
+            <article class="method-card accent-method">
+              <span class="method-number">02</span>
+              <h3>Open-set решение</h3>
+              <p>Модель может отказаться от матча, если лучший cosine score ниже порога, подобранного по validation F1.</p>
+              <dl id="submission-facts" class="compact-facts"></dl>
+            </article>
+            <article class="method-card">
+              <span class="method-number">03</span>
+              <h3>Воспроизводимость</h3>
+              <p>Версия кода и checksum checkpoint закреплены вместе с submission.</p>
+              <dl id="provenance-facts" class="compact-facts"></dl>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <span>Engineering Team · research artifact</span>
+      <span>Данные доступны только внутри закрытого контура</span>
+    </footer>
+    <noscript>Для интерактивного отчёта требуется JavaScript.</noscript>
+  </body>
+</html>

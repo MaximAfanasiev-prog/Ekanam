@@ -8,6 +8,7 @@ from .config import load_config
 from .infer import package_submission, run_inference, verify_submission
 from .prepare import prepare_archive
 from .train import train_baseline
+from .web import serve_dashboard
 
 DEFAULT_CONFIG = "configs/baseline.toml"
 
@@ -35,6 +36,12 @@ def build_parser() -> argparse.ArgumentParser:
     verify = subparsers.add_parser("verify", help="проверить и упаковать submission")
     verify.add_argument("--data-dir", required=True)
     verify.add_argument("--output-dir", required=True)
+
+    web = subparsers.add_parser("web", help="запустить локальный dashboard результатов")
+    web.add_argument("--data-dir", required=True)
+    web.add_argument("--run-dir", required=True)
+    web.add_argument("--host", default="127.0.0.1")
+    web.add_argument("--port", type=int, default=8080)
 
     run = subparsers.add_parser("run", help="выполнить полный baseline-конвейер")
     run.add_argument("--archive", required=True)
@@ -83,6 +90,10 @@ def main(argv: list[str] | None = None) -> None:
         report = verify_submission(args.data_dir, args.output_dir)
         archive = package_submission(args.output_dir)
         print(json.dumps({"verification": report, "archive": str(archive)}, ensure_ascii=False))
+        return
+
+    if args.command == "web":
+        serve_dashboard(args.data_dir, args.run_dir, host=args.host, port=args.port)
         return
 
     if args.command == "run":

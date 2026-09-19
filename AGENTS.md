@@ -1,7 +1,7 @@
 # Agent instructions
 
 Read `catalog-info.yaml`, `engineering-policy.json`, `README.md`,
-`docs/data.md` and `docs/runbook.md` before editing.
+`docs/data.md` and `docs/experiment-reproducibility.md` before editing.
 
 State a standards preflight with the `research-python` profile, pinned Engineering
 Standards release, affected environment, data boundary, registered exceptions
