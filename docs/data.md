@@ -31,12 +31,18 @@ Keep source material outside the repository:
 ├── source/evaluate.py
 ├── source/example_submission.zip
 ├── extracted/
-└── manifests/
+│   └── .prepared.json
+└── runs/
 ```
 
 The local manifest must record the acquisition date, exact byte size, SHA-256,
 provenance and access restriction before extraction or training. Do not upload
 the dataset to shared S3 without a separate data-governance decision.
+
+The verified source archive has SHA-256
+`a17950796be648c086b6d313e5d2508447e194f4ab4140bc37143d1fbba47613`.
+The preparation command refuses an archive with another checksum and records the
+validated table and image counts in `extracted/.prepared.json`.
 
 ## Validation rule
 

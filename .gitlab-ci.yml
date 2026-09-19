@@ -1,0 +1,34 @@
+stages: [validate, test]
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+include:
+  - component: $CI_SERVER_FQDN/engineering-team/engineering-standards/catalog-validation@0.2.9
+  - component: $CI_SERVER_FQDN/engineering-team/engineering-standards/repository-audit@0.2.9
+  - component: $CI_SERVER_FQDN/engineering-team/engineering-standards/repository-policy@0.2.9
+  - component: $CI_SERVER_FQDN/engineering-team/engineering-standards/python-quality@0.2.9
+    inputs:
+      test-command: python -m pytest -q && python scripts/smoke.py
+
+catalog-validation:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+repository-contract-audit:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+repository-policy:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+python-quality:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

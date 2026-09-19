@@ -1,0 +1,35 @@
+[data]
+archive_sha256 = "a17950796be648c086b6d313e5d2508447e194f4ab4140bc37143d1fbba47613"
+seed = 20260919
+validation_fraction = 0.25
+open_set_fraction = 0.25
+crop_margin = 0.05
+image_height = 128
+image_width = 128
+
+[model]
+backbone = "resnet18"
+embedding_dim = 128
+pretrained = false
+
+[train]
+epochs = 1
+identities_per_batch = 4
+instances_per_identity = 2
+steps_per_epoch = 2
+workers = 2
+learning_rate = 0.0003
+weight_decay = 0.0005
+label_smoothing = 0.0
+triplet_margin = 0.30
+triplet_weight = 1.0
+mixed_precision = false
+
+[inference]
+batch_size = 32
+workers = 2
+top_k = 10
+
+[debug]
+max_train_identities = 12
+max_validation_identities = 12

@@ -1,0 +1,15 @@
+services:
+  baseline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lct26-street-falcon-reid:baseline
+    gpus: all
+    shm_size: 8gb
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    environment:
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      HOME: /tmp
+      TORCH_HOME: /data/cache/torch
+    volumes:
+      - ${LCT_DATA_DIR:?Set LCT_DATA_DIR to the restricted dataset directory}:/data

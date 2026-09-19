@@ -6,13 +6,13 @@ metadata:
   icon: scan-search
   owner: engineering-team
   tags:
-    - product
-    - web
+    - research
+    - reproducibility
     - computer-vision
     - vehicle-reid
     - hackathon
 spec:
-  type: web-product
+  type: research-python
   lifecycle: experimental
   system: lct26-street-falcon-reid
   source:
@@ -22,5 +22,5 @@ spec:
   knowledge:
     obsidian: Opportunities/Практика/ИИ и цифровые сервисы.md
   operations:
-    runbook: docs/runbook.md
+    runbook: docs/experiment-reproducibility.md
   environments: []
