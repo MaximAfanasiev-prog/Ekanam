@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import csv
 import json
+import threading
+import unittest
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from urllib.error import HTTPError
+from urllib.request import urlopen
 
 import numpy as np
 from PIL import Image
 
-from street_falcon_reid.web import DashboardData, DashboardStore
+from street_falcon_reid.web import DashboardData, DashboardHandler, DashboardStore
 
 
 def _write_records(path: Path, image_ids: list[str]) -> None:
@@ -121,3 +127,65 @@ def test_dashboard_store_reports_missing_run_as_degraded(tmp_path: Path) -> None
 
     assert store.data is None
     assert store.error
+
+
+class TestDashboardErrors(unittest.TestCase):
+    def test_missing_file_and_recovery(self) -> None:
+        with TemporaryDirectory() as directory:
+            data_dir, run_dir = _fixture(Path(directory))
+            path = run_dir / "history.jsonl"
+            original = path.read_text(encoding="utf-8")
+            path.unlink()
+            store = DashboardStore(data_dir, run_dir)
+            self.assertIsNone(store.data)
+            self.assertIn("history.jsonl", store.error)
+            self.assertNotIn(directory, store.error)
+            with self.assertRaises(RuntimeError):
+                store.require()
+            path.write_text(original, encoding="utf-8")
+            store.reload()
+            self.assertIsNone(store.error)
+            self.assertEqual(store.require().summary()["best"]["epoch"], 30)
+
+    def test_invalid_results_return_json_service_unavailable(self) -> None:
+        cases = [
+            ("validation-report.json", "{broken"),
+            ("config.toml", "[broken"),
+            ("submission/candidates.csv", "wrong,columns\nx,y\n"),
+            ("submission/candidates.csv", "query_id,gallery_id,confidence\nq1,g1\n"),
+        ]
+        for filename, contents in cases:
+            with self.subTest(filename=filename, contents=contents):
+                with TemporaryDirectory() as directory:
+                    data_dir, run_dir = _fixture(Path(directory))
+                    (run_dir / filename).write_text(contents, encoding="utf-8")
+                    store = DashboardStore(data_dir, run_dir)
+                    self.assertIsNone(store.data)
+                    self.assertIn("invalid format", store.error)
+                    handler = type("TestHandler", (DashboardHandler,), {"store": store})
+                    with ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
+                        thread = threading.Thread(target=server.serve_forever, daemon=True)
+                        thread.start()
+                        try:
+                            address = f"http://127.0.0.1:{server.server_port}"
+                            for endpoint in ("/api/health", "/api/summary", "/api/queries"):
+                                with self.assertRaises(HTTPError) as caught:
+                                    urlopen(address + endpoint, timeout=3)
+                                with caught.exception as response:
+                                    self.assertEqual(response.code, 503)
+                                    payload = json.load(response)
+                                self.assertIn("invalid format", payload["error"])
+                                self.assertNotIn(directory, payload["error"])
+                                if endpoint == "/api/health":
+                                    self.assertEqual(payload["status"], "degraded")
+                            with urlopen(address + "/", timeout=3) as response:
+                                self.assertEqual(response.status, 200)
+                        finally:
+                            server.shutdown()
+                            thread.join(timeout=3)
+
+    def test_existing_dashboard_behavior(self) -> None:
+        with TemporaryDirectory() as directory:
+            test_dashboard_reads_metrics_and_retrieval_results(Path(directory))
+        with TemporaryDirectory() as directory:
+            test_dashboard_store_reports_missing_run_as_degraded(Path(directory))

@@ -213,9 +213,19 @@ class DashboardStore:
             try:
                 self.data = DashboardData(self.data_dir, self.run_dir)
                 self.error = None
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
+            except FileNotFoundError as exc:
                 self.data = None
-                self.error = str(exc)
+                filename = Path(exc.filename).name if exc.filename else "unknown"
+                self.error = f"Results file not found: {filename}. Check the selected run."
+            except PermissionError:
+                self.data = None
+                self.error = "Cannot read results. Check file access permissions."
+            except (ValueError, KeyError, TypeError, csv.Error):
+                self.data = None
+                self.error = "Results have an invalid format. Check the selected run's files."
+            except OSError:
+                self.data = None
+                self.error = "Cannot read results. Check that the files are accessible."
 
     def require(self) -> DashboardData:
         if self.data is None:
