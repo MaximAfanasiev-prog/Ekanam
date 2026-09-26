@@ -189,3 +189,49 @@ class TestDashboardErrors(unittest.TestCase):
             test_dashboard_reads_metrics_and_retrieval_results(Path(directory))
         with TemporaryDirectory() as directory:
             test_dashboard_store_reports_missing_run_as_degraded(Path(directory))
+
+
+class TestResultConsistency(unittest.TestCase):
+    def test_invalid_rankings_and_candidates_are_rejected(self) -> None:
+        cases = [
+            ("submission.csv", "q1,missing\nq2,g2\n"),
+            ("submission.csv", "q1,g1,g1\nq2,g2\n"),
+            ("candidates.csv", "query_id,gallery_id,confidence\nmissing,g1,1\n"),
+            ("candidates.csv", "query_id,gallery_id,confidence\nq1,missing,1\n"),
+            ("candidates.csv", "query_id,gallery_id,confidence\nq1,g1,nan\n"),
+        ]
+        for filename, content in cases:
+            with self.subTest(filename=filename, content=content):
+                with TemporaryDirectory() as directory:
+                    data_dir, run_dir = _fixture(Path(directory))
+                    (run_dir / "submission" / filename).write_text(content, encoding="utf-8")
+                    store = DashboardStore(data_dir, run_dir)
+                    self.assertIsNone(store.data)
+                    self.assertIn("invalid format", store.error)
+
+    def test_invalid_embeddings_and_recovery(self) -> None:
+        arrays = [
+            np.ones((3, 2)), np.ones((4, 3)), np.ones(4),
+            np.full((4, 2), np.nan), np.full((4, 2), np.inf),
+            np.zeros((4, 2)), np.full((4, 2), "bad"),
+            np.ones((4, 2), dtype=complex),
+        ]
+        for values in arrays:
+            with self.subTest(shape=values.shape, dtype=values.dtype):
+                with TemporaryDirectory() as directory:
+                    data_dir, run_dir = _fixture(Path(directory))
+                    dashboard = DashboardData(data_dir, run_dir)
+                    path = run_dir / "submission" / "embeddings.npy"
+                    np.save(path, values, allow_pickle=False)
+                    with self.assertRaises(ValueError):
+                        dashboard.query_detail("q1")
+                    np.save(path, np.ones((4, 2)), allow_pickle=False)
+                    result = dashboard.query_detail("q1")
+                    self.assertAlmostEqual(result["gallery"][0]["score"], 1.0, places=6)
+
+    def test_unknown_query_still_raises_key_error(self) -> None:
+        with TemporaryDirectory() as directory:
+            data_dir, run_dir = _fixture(Path(directory))
+            dashboard = DashboardData(data_dir, run_dir)
+            with self.assertRaises(KeyError):
+                dashboard.query_detail("unknown")

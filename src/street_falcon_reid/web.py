@@ -61,6 +61,17 @@ class DashboardData:
         if set(self.rankings) != set(self.query_by_id):
             raise ValueError("submission.csv не соответствует test_query.csv")
 
+        for ranking in self.rankings.values():
+            if any(image_id not in self.gallery_by_id for image_id in ranking):
+                raise ValueError("Rankings reference an unknown gallery image.")
+            if len(ranking) != len(set(ranking)):
+                raise ValueError("Rankings contain duplicate gallery images.")
+        for query_id, candidate in self.candidates.items():
+            if query_id not in self.query_by_id or candidate["galleryId"] not in self.gallery_by_id:
+                raise ValueError("Candidates reference an unknown image.")
+            if not np.isfinite(candidate["confidence"]):
+                raise ValueError("Candidate confidence must be finite.")
+
     @staticmethod
     def _read_json(path: Path) -> dict[str, Any]:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -181,9 +192,19 @@ class DashboardData:
     def _load_embeddings(self) -> np.ndarray:
         if self._embeddings is None:
             values = np.load(self.submission_dir / "embeddings.npy", allow_pickle=False)
-            values = values.astype(np.float32, copy=False)
+            expected_shape = (len(self.query) + len(self.gallery), self.metadata["embedding_dim"])
+            if not isinstance(values, np.ndarray):
+                values.close()
+                raise ValueError("Embeddings must be a NumPy array.")
+            if values.shape != expected_shape or values.dtype.kind not in "fi":
+                raise ValueError("Embeddings have an invalid shape or numeric type.")
+            if not np.isfinite(values).all():
+                raise ValueError("Embeddings must contain only finite numbers.")
+            values = values.astype(np.float64, copy=False)
             norms = np.linalg.norm(values, axis=1, keepdims=True)
-            self._embeddings = values / np.clip(norms, 1e-12, None)
+            if not np.isfinite(norms).all() or (norms <= 0).any():
+                raise ValueError("Embeddings must have finite, non-zero norms.")
+            self._embeddings = (values / norms).astype(np.float32)
         return self._embeddings
 
     @staticmethod
