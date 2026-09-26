@@ -57,13 +57,13 @@ class VehicleDataset(Dataset[dict[str, object]]):
         image_path = self.images_dir / f"{record.image_id}.jpg"
         with Image.open(image_path) as source:
             image = source.convert("RGB")
-            image = _crop_vehicle(image, record, self.crop_margin)
+            image = crop_vehicle(image, record, self.crop_margin)
             tensor = self.transform(image)
         label = self.label_map.get(record.vehicle_id or "", -1)
         return {"image": tensor, "label": label, "image_id": record.image_id}
 
 
-def _crop_vehicle(image: Image.Image, record: VehicleRecord, margin: float) -> Image.Image:
+def crop_vehicle(image: Image.Image, record: VehicleRecord, margin: float) -> Image.Image:
     dx = round(record.w * margin)
     dy = round(record.h * margin)
     left = max(0, record.x - dx)

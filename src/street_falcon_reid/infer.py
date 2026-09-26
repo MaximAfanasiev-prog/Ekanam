@@ -11,7 +11,7 @@ import torch
 
 from .dataset import VehicleDataset, build_transform
 from .metrics import cosine_similarity, stable_rank
-from .model import ReIDModel
+from .predictor import load_model
 from .prepare import sha256_file
 from .records import read_records
 from .train import extract_embeddings
@@ -29,16 +29,7 @@ def run_inference(
     output.mkdir(parents=True, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    checkpoint = torch.load(checkpoint_file, map_location="cpu", weights_only=False)
-    model_config = checkpoint["model_config"]
-    model = ReIDModel(
-        backbone=str(model_config["backbone"]),
-        embedding_dim=int(model_config["embedding_dim"]),
-        num_classes=int(model_config["num_classes"]),
-        pretrained=False,
-    )
-    model.load_state_dict(checkpoint["model"])
-    model.to(device).eval()
+    model, checkpoint, device = load_model(checkpoint_file, str(device))
 
     data_config = config["data"]
     inference_config = config["inference"]
@@ -111,6 +102,7 @@ def run_inference(
         "open_set_threshold": threshold,
         "query_count": len(query_ids),
         "gallery_count": len(gallery_ids),
+        "gallery_csv_sha256": sha256_file(data_root / "test_gallery.csv"),
         "embedding_dim": int(query_embeddings.shape[1]),
         "device": str(device),
         "torch": torch.__version__,
