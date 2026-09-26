@@ -9,54 +9,19 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
-from starlette.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .http_support import RequestContext, RequestSizeLimit, error_response
 from .predictor import BBox, InvalidBBox
 from .search import SearchBusy, SearchService
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_REQUEST_BYTES = MAX_IMAGE_BYTES + 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
-logger = logging.getLogger(__name__)
-
-
-class RequestSizeLimit:
-    """Bound the complete upload before multipart parsing, even without Content-Length."""
-
-    def __init__(self, app: ASGIApp, limit: int) -> None:
-        self.app = app
-        self.limit = limit
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope["method"] != "POST":
-            await self.app(scope, receive, send)
-            return
-        body = bytearray()
-        while True:
-            message = await receive()
-            if message["type"] == "http.disconnect":
-                return
-            body.extend(message.get("body", b""))
-            if len(body) > self.limit:
-                await JSONResponse(
-                    {"detail": "Request is too large."}, status_code=413
-                )(scope, receive, send)
-                return
-            if not message.get("more_body", False):
-                break
-        delivered = False
-
-        async def replay() -> dict:
-            nonlocal delivered
-            if not delivered:
-                delivered = True
-                return {"type": "http.request", "body": bytes(body), "more_body": False}
-            return await receive()
-
-        await self.app(scope, replay, send)
+logger = logging.getLogger("uvicorn.error")
 
 
 class Match(BaseModel):
@@ -66,6 +31,7 @@ class Match(BaseModel):
 
 
 class SearchResponse(BaseModel):
+    request_id: str
     accepted: bool
     threshold: float
     matches: list[Match]
@@ -74,6 +40,11 @@ class SearchResponse(BaseModel):
 
 
 def _load_service() -> SearchService:
+    bundle = os.getenv("LCT_GALLERY_DIR")
+    if bundle:
+        return SearchService.load_bundle(
+            Path(os.environ["LCT_CHECKPOINT"]), Path(bundle), os.getenv("LCT_DEVICE", "cpu")
+        )
     return SearchService.load(
         Path(os.environ["LCT_DATA_DIR"]) / "extracted",
         Path(os.environ["LCT_RUN_DIR"]),
@@ -92,8 +63,55 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
         finally:
             app.state.service = None
 
-    app = FastAPI(title="Street Falcon Search", lifespan=lifespan)
+    app = FastAPI(
+        title="Street Falcon Search", version="1.0.0", lifespan=lifespan,
+        root_path=os.getenv("LCT_ROOT_PATH", ""),
+    )
     app.add_middleware(RequestSizeLimit, limit=MAX_REQUEST_BYTES)
+    app.add_middleware(RequestContext)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request: Request, exc: StarletteHTTPException):
+        return error_response(request.scope, exc.status_code, str(exc.detail), exc.headers)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, exc: RequestValidationError):
+        fields = [
+            {"field": ".".join(str(part) for part in error["loc"]), "type": error["type"]}
+            for error in exc.errors()
+        ]
+        return error_response(request.scope, 422, "Invalid request fields.", fields=fields)
+
+    @app.get("/api/v1/live")
+    def live():
+        return {"status": "alive"}
+
+    @app.get("/api/v1/ready")
+    def ready(request: Request):
+        service = getattr(request.app.state, "service", None)
+        if service is None:
+            raise HTTPException(503, "Search service is not ready.")
+        return {
+            "status": "ok", "model_version": service.predictor.model_version,
+            "gallery_version": service.gallery.version, "gallery_count": len(service.gallery.ids),
+            "device": str(service.predictor.device),
+        }
+
+    @app.get("/api/v1/info")
+    def info(request: Request):
+        service = getattr(request.app.state, "service", None)
+        if service is None:
+            raise HTTPException(503, "Search service is not ready.")
+        return {
+            **ready(request), "embedding_dim": service.predictor.embedding_dim,
+            "threshold": service.predictor.threshold,
+            "bbox_format": "x,y,w,h", "bbox_source": "client",
+            "coordinate_space": "original image pixels, no EXIF rotation",
+            "crop_margin": service.predictor.data_config["crop_margin"],
+            "formats": ["JPEG", "PNG"], "max_image_bytes": MAX_IMAGE_BYTES,
+            "max_image_pixels": MAX_IMAGE_PIXELS, "max_top_k": 10,
+            "max_concurrent_uploads": 2, "upload_timeout_seconds": 15,
+        }
 
     @app.get("/api/v1/health")
     def health(request: Request):
@@ -101,7 +119,17 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
             raise HTTPException(503, "Search service is not ready.")
         return {"status": "ok"}
 
-    @app.post("/api/v1/search", response_model=SearchResponse)
+    @app.post(
+        "/api/v1/search", response_model=SearchResponse,
+        responses={
+            status: {"description": message}
+            for status, message in {
+                408: "Upload timeout", 413: "Upload too large", 415: "Unsupported image",
+                422: "Invalid client bbox or fields", 429: "Busy; retry after one second",
+                500: "Inference failed", 503: "Not ready",
+            }.items()
+        },
+    )
     def search(
         request: Request,
         image: Annotated[UploadFile, File()],
@@ -123,6 +151,8 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
                     raise HTTPException(415, "Only JPEG and PNG are supported.")
                 if source.width * source.height > MAX_IMAGE_PIXELS:
                     raise HTTPException(413, "Image exceeds 20 million pixels.")
+                if getattr(source, "n_frames", 1) != 1:
+                    raise HTTPException(415, "Animated images are not supported.")
                 bbox = BBox(x, y, w, h)
                 bbox.validate(source)
                 source.load()
@@ -135,13 +165,16 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
             raise HTTPException(415, "Image cannot be decoded.") from exc
         try:
             with decoded:
-                return service.search(decoded, bbox, top_k)
+                return {
+                    **service.search(decoded, bbox, top_k),
+                    "request_id": request.state.request_id,
+                }
         except SearchBusy as exc:
             raise HTTPException(429, str(exc), headers={"Retry-After": "1"}) from exc
         except HTTPException:
             raise
         except Exception as exc:
-            logger.exception("Search inference failed")
+            logger.exception("Search inference failed request_id=%s", request.state.request_id)
             raise HTTPException(500, "Search failed. Check server logs.") from exc
 
     return app

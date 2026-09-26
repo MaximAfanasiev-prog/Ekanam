@@ -294,3 +294,124 @@ def test_api_inference_failure_is_not_reported_as_invalid_upload(assets, service
         )
         assert response.status_code == 500
         assert "private runtime detail" not in response.text
+
+
+def test_bundle_roundtrip_is_independent_of_csv(assets, service, tmp_path):
+    from street_falcon_reid.gallery_bundle import export_bundle, load_bundle
+    data, run = assets
+    output = export_bundle(data, run, tmp_path / "bundle")
+    loaded = load_bundle(output, service.predictor)
+    assert loaded.ids == service.gallery.ids
+    np.testing.assert_allclose(loaded.embeddings, service.gallery.embeddings, atol=1e-6)
+    with pytest.raises(FileExistsError):
+        export_bundle(data, run, output)
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["source_csv_checksum_verified"] is True
+
+
+@pytest.mark.parametrize("filename", ["ids.json", "gallery.npy"])
+def test_bundle_detects_modified_data(assets, service, tmp_path, filename):
+    from street_falcon_reid.gallery_bundle import export_bundle, load_bundle
+    output = export_bundle(*assets, tmp_path / "bundle")
+    with (output / filename).open("ab") as stream:
+        stream.write(b"corrupt")
+    with pytest.raises(ValueError, match="checksum"):
+        load_bundle(output, service.predictor)
+
+
+@pytest.mark.parametrize("key,value", [
+    ("schema_version", 2), ("checkpoint_sha256", "wrong"), ("embedding_dim", 999),
+    ("threshold", 0.9), ("gallery_count", 999), ("preprocessing", {}),
+])
+def test_bundle_rejects_incompatible_manifest(assets, service, tmp_path, key, value):
+    from street_falcon_reid.gallery_bundle import export_bundle, load_bundle
+    output = export_bundle(*assets, tmp_path / "bundle")
+    path = output / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest[key] = value
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError):
+        load_bundle(output, service.predictor)
+
+
+def test_legacy_export_requires_explicit_acknowledgement(assets, tmp_path):
+    from street_falcon_reid.gallery_bundle import export_bundle
+    data, run = assets
+    copy = tmp_path / "legacy"
+    shutil.copytree(run, copy)
+    path = copy / "submission/run-metadata.json"
+    metadata = json.loads(path.read_text())
+    del metadata["gallery_csv_sha256"]
+    path.write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="allow-legacy"):
+        export_bundle(data, copy, tmp_path / "blocked")
+    output = export_bundle(data, copy, tmp_path / "allowed", allow_legacy=True)
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["source_csv_checksum_verified"] is False
+
+
+def test_api_request_ids_errors_and_runtime_info(service):
+    with TestClient(create_app(lambda: service)) as client:
+        first = client.get("/api/v1/live")
+        second = client.get("/api/v1/ready")
+        assert first.json() == {"status": "alive"}
+        assert second.json()["gallery_count"] == 2
+        assert first.headers["x-request-id"] != second.headers["x-request-id"]
+        assert float(first.headers["x-process-time-ms"]) >= 0
+        assert client.get("/api/v1/info").json()["bbox_source"] == "client"
+        response = client.post("/api/v1/search", data={"x": "secret-invalid-value"})
+        assert response.status_code == 422
+        assert response.json()["request_id"] == response.headers["x-request-id"]
+        assert response.json()["error"]["code"] == "validation_error"
+        assert "secret-invalid-value" not in response.text
+        response = client.get("/unknown")
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"
+
+
+def test_api_png_and_request_id_success(service):
+    image = io.BytesIO()
+    Image.new("RGB", (16, 16), "red").save(image, format="PNG")
+    with TestClient(create_app(lambda: service)) as client:
+        response = client.post(
+            "/api/v1/search", files={"image": ("car.png", image.getvalue(), "image/png")},
+            data={"x": 0, "y": 0, "w": 16, "h": 16},
+        )
+        assert response.status_code == 200
+        assert response.json()["request_id"] == response.headers["x-request-id"]
+
+
+def test_api_rejects_animation(service):
+    image = io.BytesIO()
+    Image.new("RGB", (16, 16), "red").save(
+        image, format="PNG", save_all=True,
+        append_images=[Image.new("RGB", (16, 16), "blue")], duration=100,
+    )
+    with TestClient(create_app(lambda: service)) as client:
+        response = client.post(
+            "/api/v1/search", files={"image": ("animation.png", image.getvalue())},
+            data={"x": 0, "y": 0, "w": 16, "h": 16},
+        )
+        assert response.status_code == 415
+
+
+def test_api_file_limit_is_independent_of_multipart_limit(service, monkeypatch):
+    import street_falcon_reid.api as api
+    monkeypatch.setattr(api, "MAX_IMAGE_BYTES", 10)
+    with TestClient(create_app(lambda: service)) as client:
+        response = client.post(
+            "/api/v1/search", files={"image": ("large.jpg", b"x" * 11)},
+            data={"x": 0, "y": 0, "w": 1, "h": 1},
+        )
+        assert response.status_code == 413
+        assert response.json()["error"]["code"] == "payload_too_large"
+
+
+def test_service_bundle_startup_and_warmup(assets, tmp_path):
+    from street_falcon_reid.gallery_bundle import export_bundle
+    _, run = assets
+    output = export_bundle(*assets, tmp_path / "bundle")
+    service = SearchService.load_bundle(run / "checkpoint-best.pt", output)
+    assert len(service.gallery.ids) == 2
+    with Image.new("RGB", (16, 16)) as image:
+        assert len(service.search(image, BBox(0, 0, 16, 16))["matches"]) == 2

@@ -23,7 +23,10 @@ class SearchBusy(RuntimeError):
 
 class GalleryIndex:
     def __init__(self, ids: list[str], embeddings: np.ndarray, version: str) -> None:
-        if not ids or len(set(ids)) != len(ids):
+        if (
+            not ids or any(not isinstance(item, str) or not item for item in ids)
+            or len(set(ids)) != len(ids)
+        ):
             raise ValueError("Gallery IDs must be non-empty and unique.")
         if embeddings.ndim != 2 or embeddings.shape[0] != len(ids):
             raise ValueError("Gallery embeddings do not match gallery IDs.")
@@ -115,7 +118,27 @@ class SearchService:
     def load(cls, data_dir: Path, run_dir: Path, device: str = "cpu") -> SearchService:
         predictor = ImagePredictor(run_dir / "checkpoint-best.pt", device)
         gallery = GalleryIndex.load(data_dir, run_dir, predictor)
-        return cls(predictor, gallery)
+        service = cls(predictor, gallery)
+        service.warmup()
+        return service
+
+    @classmethod
+    def load_bundle(
+        cls, checkpoint_path: Path, bundle_dir: Path, device: str = "cpu"
+    ) -> SearchService:
+        from .gallery_bundle import load_bundle
+
+        predictor = ImagePredictor(checkpoint_path, device)
+        gallery = load_bundle(bundle_dir, predictor)
+        service = cls(predictor, gallery)
+        service.warmup()
+        return service
+
+    def warmup(self) -> None:
+        width = int(self.predictor.data_config["image_width"])
+        height = int(self.predictor.data_config["image_height"])
+        with Image.new("RGB", (width, height)) as image:
+            self.predictor.embed_image(image, BBox(0, 0, width, height))
 
     def search(self, image: Image.Image, bbox: BBox, top_k: int = 10) -> dict[str, object]:
         if not self._lock.acquire(blocking=False):

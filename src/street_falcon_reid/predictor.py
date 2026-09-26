@@ -56,6 +56,13 @@ class ImagePredictor:
         self.model_version = sha256_file(checkpoint_path)
         self.model, checkpoint, self.device = load_model(checkpoint_path, device)
         self.data_config = checkpoint["data_config"]
+        for key in ("image_height", "image_width"):
+            value = self.data_config[key]
+            if type(value) is not int or not 1 <= value <= 4096:
+                raise ValueError("Checkpoint image dimensions must be integers in 1..4096.")
+        margin = float(self.data_config["crop_margin"])
+        if not np.isfinite(margin) or not 0 <= margin <= 1:
+            raise ValueError("Checkpoint crop margin must be finite and in 0..1.")
         self.embedding_dim = int(checkpoint["model_config"]["embedding_dim"])
         self.threshold = float(checkpoint["open_set_threshold"])
         if not np.isfinite(self.threshold):

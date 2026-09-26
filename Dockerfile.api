@@ -1,0 +1,14 @@
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime@sha256:c8268a92a69bd500f8be0e665b2630ee006dadaf7bfbc24249141b15ff622755
+WORKDIR /workspace
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    OMP_NUM_THREADS=1 \
+    HOME=/tmp
+COPY pyproject.toml LICENSE README.md requirements-api.lock ./
+COPY src ./src
+COPY configs ./configs
+RUN python -m pip install --no-cache-dir -c requirements-api.lock '.[api]'
+USER 1000:1000
+ENTRYPOINT ["python", "-m", "uvicorn"]
+CMD ["street_falcon_reid.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log", "--no-proxy-headers"]

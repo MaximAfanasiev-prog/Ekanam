@@ -1,0 +1,43 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: lct26-street-falcon-reid:api-maxim
+    restart: unless-stopped
+    read_only: true
+    init: true
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    cpus: 2
+    mem_limit: 3g
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      LCT_CHECKPOINT: /model/checkpoint.pt
+      LCT_GALLERY_DIR: /gallery
+      LCT_DEVICE: cpu
+      LCT_ROOT_PATH: ${LCT_ROOT_PATH:-}
+    volumes:
+      - ${LCT_CHECKPOINT:?Set LCT_CHECKPOINT to a trusted checkpoint file}:/model/checkpoint.pt:ro
+      - ${LCT_GALLERY_DIR:?Set LCT_GALLERY_DIR to the exported bundle}:/gallery:ro
+    ports:
+      - 127.0.0.1:${LCT_API_PORT:-27812}:8080
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/v1/ready', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

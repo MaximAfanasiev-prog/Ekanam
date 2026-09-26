@@ -192,80 +192,13 @@ Smoke-конфигурация использует малую подвыбор�
 
 ## Online search API (maxim_backend)
 
-The API accepts an image and a **client-supplied** bounding box `x, y, w, h`.
-It does not detect vehicles or infer bounding boxes. Coordinates are integer pixels
-in the original decoded image (no EXIF rotation): x/y are non-negative, w/h are
-positive, and the complete rectangle must fit inside the image. After validation,
-the checkpoint's crop margin is applied exactly as in the baseline (5% for the
-current run), clipped to the image edges.
+POST /api/v1/search accepts a client-provided image and bbox x, y, w, h.
+No vehicle detection is performed. Model and verified gallery load once.
+The separate API container supports bounded uploads, request IDs, JSON errors,
+readiness checks, startup warmup and a versioned gallery package.
 
-Install in a separate Python 3.11/3.12 environment:
+- [Backend operation and frontend contract](docs/backend.md)
+- [Baseline handoff contract and gallery export](docs/baseline-contract.md)
 
-```bash
-python -m venv .venv-api
-source .venv-api/bin/activate
-python -m pip install -e '.[api,test]'
-export LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid
-export LCT_RUN_DIR="$LCT_DATA_DIR/runs/resnet50-baseline-93f4287"
-export LCT_DEVICE=cpu
-python -m uvicorn street_falcon_reid.api:create_app --factory --host 127.0.0.1 --port 27812 --workers 1
-```
-
-CPU is the conservative default on a shared server; explicitly set
-`LCT_DEVICE=cuda` only when GPU resources are available. Use one worker:
-each process loads its own model and gallery. This is a separate service from
-the dashboard. No existing containers or images need rebuilding.
-
-On the client computer:
-
-```bash
-ssh -N -L 8782:127.0.0.1:27812 hackathon-lunopopicks
-```
-
-Interactive API documentation: http://127.0.0.1:8782/docs.
-Health: `GET /api/v1/health`.
-
-Example request (replace coordinates with the actual client-selected rectangle):
-
-```bash
-curl --fail-with-body http://127.0.0.1:8782/api/v1/search \
-  -F 'image=@car.jpg' -F x=100 -F y=50 -F w=300 -F h=200 -F top_k=10
-```
-
-JPEG and PNG are accepted. Limits: 10 MiB image, 11 MiB complete multipart
-request, 20 million decoded pixels; top_k is 1..10 and capped by gallery size.
-The API returns `accepted`, `threshold`, `matches` (rank, image_id, score),
-`model_version` (checkpoint SHA-256) and `gallery_version` (run ID plus embeddings
-SHA-256). Scores are cosine similarities, not probabilities. The threshold is
-inherited from baseline validation, not calibrated for arbitrary new domains.
-A refused query still returns top-k for inspection.
-
-Errors: 422 invalid/missing bbox or top_k, 413 excessive size, 415 undecodable or
-unsupported image, 429 inference already busy, 503 not ready, 500 inference failure.
-No upload is retained by application code; temporary multipart upload files are
-closed after the request. Model execution is serialized with a non-blocking lock.
-This local API has no authentication and must remain on loopback / behind SSH.
-
-Startup reads checkpoint, run config, run-metadata.json, verification.json,
-embeddings.npy and test_gallery.csv. It checks model identity, preprocessing,
-threshold, dimensions, embedding checksum and gallery validity. Only the gallery
-slice after query_count is retained; gallery images are not re-embedded.
-New offline runs record gallery_csv_sha256. Legacy runs lack this checksum:
-startup emits a warning and requires the original, unmodified gallery CSV in
-its original order. Its order cannot be independently proven from legacy metadata.
-Startup fails if required artifacts are missing or incompatible.
-
-Checks in an isolated environment:
-
-```bash
-python -m ruff check .
-python -m pytest -q
-python scripts/smoke.py
-python scripts/smoke_online.py --data-dir "$LCT_DATA_DIR/extracted" --run-dir "$LCT_RUN_DIR"
-```
-
-The last command compares online and batch embeddings on the same CPU at 1e-6
-tolerance, then compares top-k with the saved GPU run (score tolerance 1e-3
-allows differences between devices/batch sizes). It checks one real query
-against saved rankings/scores on CPU. It writes no dataset/run files and does
-not measure full-dataset quality or production performance.
+API development and tests: python -m pip install -c requirements-api.lock -e '.[api,test]'.
+Source, tests and documentation only belong in Git; model/data bundles stay outside.

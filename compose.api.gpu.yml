@@ -1,0 +1,6 @@
+# Optional override after checking GPU availability.
+services:
+  api:
+    gpus: all
+    environment:
+      LCT_DEVICE: cuda
