@@ -191,11 +191,46 @@ form.addEventListener("submit", async (event) => {
     $("decision").textContent = result.accepted ? "Найдено возможное совпадение" : "Надёжного совпадения нет";
     $("threshold").textContent = "Порог модели: " + Number(result.threshold).toFixed(4);
     for (const match of result.matches) {
-      const tr = document.createElement("tr");
-      [String(match.rank).padStart(2, "0"), match.image_id, Number(match.score).toFixed(4)].forEach((value) => {
-        const td = document.createElement("td"); td.textContent = value; tr.append(td);
+      const card = document.createElement("article");
+      card.className = "match-card";
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "match-photo";
+      button.setAttribute("aria-label", "Открыть фото: место " + match.rank);
+      const img = document.createElement("img");
+      img.alt = "Автомобиль — место " + match.rank;
+      img.loading = "lazy";
+      img.src = api("gallery/" + encodeURIComponent(match.image_id) + "/thumbnail");
+      const rank = document.createElement("span");
+      rank.className = "rank";
+      rank.textContent = "#" + match.rank;
+      const fallback = document.createElement("span");
+      fallback.className = "photo-fallback";
+      fallback.textContent = "Фото недоступно";
+      fallback.hidden = true;
+      img.addEventListener("error", () => {
+        img.hidden = true; fallback.hidden = false; button.disabled = true;
       });
-      $("matches").append(tr);
+      button.append(img, rank, fallback);
+      button.addEventListener("click", () => {
+        $("large-photo").src = img.src;
+        $("photo-caption").textContent = "Место " + match.rank + " · сходство " + Number(match.score).toFixed(4);
+        $("photo-dialog").showModal();
+      });
+      const meta = document.createElement("div");
+      meta.className = "match-meta";
+      const label = document.createElement("span");
+      label.className = "score-label";
+      label.textContent = match.rank === 1 ? "ЛУЧШИЙ КАНДИДАТ" : "СХОДСТВО";
+      const score = document.createElement("strong");
+      score.textContent = Number(match.score).toFixed(4);
+      const id = document.createElement("span");
+      id.className = "image-id";
+      id.title = match.image_id;
+      id.textContent = match.image_id;
+      meta.append(label, score, id);
+      card.append(button, meta);
+      $("matches").append(card);
     }
     $("request-id").textContent = result.request_id;
     $("duration").textContent = response.headers.get("x-process-time-ms") ? response.headers.get("x-process-time-ms") + " мс" : "—";
@@ -205,5 +240,9 @@ form.addEventListener("submit", async (event) => {
     error(exception.name === "TimeoutError" ? "Ответ не получен за 45 секунд. Проверьте состояние сервиса и повторите позже." : (exception.message || "Проверьте соединение с сервером."));
     $("result-empty").hidden = false;
   } finally {setBusy(false);}
+});
+$("close-photo").addEventListener("click", () => $("photo-dialog").close());
+$("photo-dialog").addEventListener("click", (event) => {
+  if (event.target === $("photo-dialog")) $("photo-dialog").close();
 });
 render(); checkReady();

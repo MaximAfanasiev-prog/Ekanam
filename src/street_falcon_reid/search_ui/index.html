@@ -9,7 +9,7 @@
 <body>
 <header class="topbar"><a class="brand" href="./"><span class="brand-mark">SF</span> STREET FALCON <span class="brand-caption">/ VEHICLE RE-ID</span></a><div class="status"><span id="status-dot"></span><span id="status-text" role="status">Подключаемся…</span><button id="refresh" type="button" aria-label="Проверить подключение">↻</button></div></header>
 <main>
-<section class="intro"><p class="eyebrow">ПОИСК ПО ВИЗУАЛЬНОМУ СХОДСТВУ</p><h1>Один автомобиль.<br><span>Нужные совпадения.</span></h1><p class="lede">Загрузите кадр и укажите координаты автомобиля.<br>Модель сравнит его с изображениями в галерее.</p></section>
+<section class="intro"><p class="eyebrow">ПОИСК ПО ВИЗУАЛЬНОМУ СХОДСТВУ</p><h1>Найти автомобиль.<br><span>Среди тысяч кадров.</span></h1><p class="lede">Загрузите кадр и укажите координаты автомобиля.<br>Модель сравнит его с изображениями в галерее.</p></section>
 <form id="search-form" novalidate>
 <div class="workspace">
 <section class="panel image-panel" aria-labelledby="image-title">
@@ -42,8 +42,8 @@
 <div class="panel-heading"><h2 id="results-title"><span class="step">03</span> Результаты поиска</h2><span id="result-count" class="tag">ОЖИДАНИЕ ЗАПРОСА</span></div>
 <div id="result-empty" class="result-empty"><span class="target-symbol" aria-hidden="true">◎</span><div><h3>Совпадения появятся здесь</h3><p>Добавьте изображение и задайте область автомобиля.</p></div></div>
 <div id="loading" class="result-empty" role="status" hidden><span class="spinner" aria-hidden="true"></span><div><h3>Сравниваем с галереей…</h3><p>Изображение обрабатывается. Это может занять несколько секунд.</p></div></div>
-<div id="result-data" hidden><div class="decision-row"><h3 id="decision"></h3><p id="threshold"></p></div><p class="results-note">Оценка показывает визуальное сходство, а не вероятность совпадения. Фотографии галереи пока не подключены.</p><div class="table-scroll"><table><thead><tr><th scope="col">Место</th><th scope="col">ID изображения</th><th scope="col">Сходство</th></tr></thead><tbody id="matches"></tbody></table></div><details><summary>Информация о запросе</summary><dl><dt>ID запроса</dt><dd id="request-id"></dd><dt>Время на сервере</dt><dd id="duration"></dd></dl></details></div>
+<div id="result-data" hidden><div class="decision-row"><h3 id="decision"></h3><p id="threshold"></p></div><p class="results-note">Оценка показывает визуальное сходство, а не вероятность совпадения. На фотографиях — автомобили из галереи, вырезанные по исходной разметке.</p><div id="matches" class="match-grid" aria-label="Найденные автомобили"></div><details><summary>Информация о запросе</summary><dl><dt>ID запроса</dt><dd id="request-id"></dd><dt>Время на сервере</dt><dd id="duration"></dd></dl></details></div>
 </section>
 <footer><span>STREET FALCON</span><span>Поиск по внешнему виду автомобиля · Hackathon 2026</span></footer>
-</main>
+<dialog id="photo-dialog"><button id="close-photo" type="button" aria-label="Закрыть фотографию">×</button><img id="large-photo" alt="Автомобиль из галереи"><p id="photo-caption"></p></dialog></main>
 </body></html>

@@ -1,3 +1,7 @@
 services:
   api:
     image: lct26-street-falcon-reid:frontend-maxim
+    environment:
+      LCT_THUMBNAIL_DIR: /thumbnails
+    volumes:
+      - ${LCT_THUMBNAIL_DIR:?Set LCT_THUMBNAIL_DIR to gallery thumbnails}:/thumbnails:ro

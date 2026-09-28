@@ -18,8 +18,7 @@ are rejected in the UI to prevent a mismatch between displayed and raw coordinat
 Save a copy without orientation metadata before uploading such a file.
 
 Select top-k (1, 5, 10) and search. Results show image IDs, cosine similarity,
-threshold decision and request ID. Scores are not probabilities. Gallery
-thumbnails are not yet available in the API.
+threshold decision and request ID. Scores are not probabilities. Gallery thumbnails appear in ranked cards; click a photo to enlarge it.
 Inputs lock during the request; changing inputs clears previous results.
 Busy, invalid input and network errors are shown without automatic retries.
 
@@ -35,7 +34,7 @@ Start a separate Compose project using the existing trusted checkpoint and
 gallery settings (see server-api.md). On the current server:
 
 ~~~sh
-LCT_API_PORT=27814 docker compose --env-file /home/projects/hackathon_2026_lunopopicks/hackathon_maxim/artifacts/street-falcon/api.env -p maxim-reid-frontend -f compose.api.yml -f compose.frontend.yml up -d --no-build api
+LCT_API_PORT=27814 docker compose --env-file /home/projects/hackathon_2026_lunopopicks/hackathon_maxim/artifacts/street-falcon/frontend.env -p maxim-reid-frontend -f compose.api.yml -f compose.frontend.yml up -d --no-build api
 ~~~
 
 This binds only 127.0.0.1:27814. The existing backend at 27812 stays separate.
@@ -50,10 +49,10 @@ step; it has not been configured by this change.
 
 ## Verification
 
-- Ruff: passed; pytest: 73 passed; model smoke: passed.
+- Ruff: passed; pytest: 75 passed; model smoke: passed.
 - Chromium / Playwright 1.63.0: upload, initially empty manual bbox, bounds
   validation, unchanged coordinates in outgoing FormData, real search returning
-  ten rows, controlled 429 and invalid-file messages, and 390px mobile layout.
+  ten photo cards, controlled 429 and invalid-file messages, and 390px mobile layout.
 - Desktop screenshot inspected. Browser smoke uses a generated synthetic image,
   not organizer images. This is an integration check, not a model quality claim.
 - Docker image includes static assets and starts with the existing gallery.
@@ -65,3 +64,25 @@ step; it has not been configured by this change.
 Standards postflight: research-python / Engineering Standards 0.2.9.
 No new policy exceptions. Source-only changes; no datasets, weights, embeddings
 or credentials committed. No model-quality, production or GitLab gate claim.
+
+## Gallery photographs
+
+The preview reads LCT_THUMBNAIL_DIR through a separate read-only mount.
+GET /api/v1/gallery/{image_id}/thumbnail only serves IDs in the loaded gallery;
+unknown IDs, missing files and symlinks return 404. Paths use SHA-256 of the ID,
+not user-provided filenames. Without the optional directory, search still works.
+
+Export cropped previews once with scripts/export_thumbnails.py:
+~~~sh
+python scripts/export_thumbnails.py --data-dir /path/to/extracted --gallery-dir /path/to/bundle --output-dir /path/outside/git/new-thumbnails
+~~~
+The exporter uses supplied test_gallery.csv bboxes, not detection; crops are for
+display only and do not alter inference. Existing output directories are refused.
+Set LCT_THUMBNAIL_DIR to this new directory in frontend.env, alongside the
+checkpoint, gallery, UID/GID and port settings. Re-export for a new gallery.
+Current preview contains 750 thumbnails. Original images stay read-only.
+The thumbnail mount and generated photos must never be included in Git or images.
+
+Additional verification: 75 Python tests, image endpoint access restrictions,
+all ten browser photos decoded, enlargement dialog and desktop/mobile cards.
+Screenshot evidence remains outside Git and CI because it contains gallery data.

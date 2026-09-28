@@ -427,3 +427,29 @@ def test_search_ui_assets_and_api_coexist(service):
         assert client.get("/ui-assets/style.css").status_code == 200
         assert client.get("/ui-assets/missing.js").status_code == 404
         assert client.get("/api/v1/ready").status_code == 200
+
+
+def test_gallery_thumbnails_restrict_access(service, tmp_path, monkeypatch):
+    import hashlib
+
+    monkeypatch.setenv("LCT_THUMBNAIL_DIR", str(tmp_path))
+    filename = hashlib.sha256(b"g1").hexdigest() + ".jpg"
+    with Image.new("RGB", (24, 16), "green") as image:
+        image.save(tmp_path / filename)
+    with TestClient(create_app(lambda: service)) as client:
+        response = client.get("/api/v1/gallery/g1/thumbnail")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/jpeg"
+        with Image.open(io.BytesIO(response.content)) as image:
+            assert image.size == (24, 16)
+        assert client.get("/api/v1/gallery/q1/thumbnail").status_code == 404
+        assert client.get("/api/v1/gallery/g2/thumbnail").status_code == 404
+        (tmp_path / filename).unlink()
+        (tmp_path / filename).symlink_to(tmp_path / "private.jpg")
+        assert client.get("/api/v1/gallery/g1/thumbnail").status_code == 404
+
+
+def test_gallery_thumbnails_optional(service, monkeypatch):
+    monkeypatch.delenv("LCT_THUMBNAIL_DIR", raising=False)
+    with TestClient(create_app(lambda: service)) as client:
+        assert client.get("/api/v1/gallery/g1/thumbnail").status_code == 404

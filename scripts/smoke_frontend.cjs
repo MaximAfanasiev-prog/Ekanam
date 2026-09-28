@@ -54,8 +54,17 @@ const fs = require("node:fs");
     assert.equal(fields[id], String(value));
   }
   await page.locator("#result-data").waitFor({state:"visible"});
-  assert.equal(await page.locator("#matches tr").count(), 10);
+  assert.equal(await page.locator("#matches .match-card").count(), 10);
   assert.equal(await page.locator("#error").isHidden(), true);
+  await page.waitForFunction(() => [...document.querySelectorAll("#matches img")].every(img => img.complete && img.naturalWidth > 0));
+  await page.locator(".match-photo").first().click();
+  assert.equal(await page.locator("#photo-dialog").isVisible(), true);
+  await page.locator("#close-photo").click();
+  if (process.env.SCREENSHOTS) await page.screenshot({path:process.env.SCREENSHOTS + "/cards-desktop.png",fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  if (process.env.SCREENSHOTS) await page.screenshot({path:process.env.SCREENSHOTS + "/cards-mobile.png",fullPage:true});
+  await page.setViewportSize({width:1440,height:1050});
   await page.route("**/api/v1/search", route => route.fulfill({
     status:429,contentType:"application/json",body:JSON.stringify({request_id:"busy-test"})
   }));

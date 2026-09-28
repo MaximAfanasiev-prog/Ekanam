@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
 import os
@@ -60,6 +61,9 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.service = factory()
+        app.state.gallery_ids = frozenset(app.state.service.gallery.ids)
+        thumbnail_dir = os.getenv("LCT_THUMBNAIL_DIR")
+        app.state.thumbnail_dir = Path(thumbnail_dir).resolve() if thumbnail_dir else None
         try:
             yield
         finally:
@@ -131,6 +135,17 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
             "max_image_pixels": MAX_IMAGE_PIXELS, "max_top_k": 10,
             "max_concurrent_uploads": 2, "upload_timeout_seconds": 15,
         }
+
+    @app.get("/api/v1/gallery/{image_id}/thumbnail", response_class=FileResponse)
+    def gallery_thumbnail(image_id: str, request: Request):
+        directory = request.app.state.thumbnail_dir
+        if directory is None or image_id not in request.app.state.gallery_ids:
+            raise HTTPException(404, "Gallery image unavailable.")
+        filename = hashlib.sha256(image_id.encode()).hexdigest() + ".jpg"
+        path = directory / filename
+        if path.is_symlink() or not path.is_file():
+            raise HTTPException(404, "Gallery image unavailable.")
+        return FileResponse(path, media_type="image/jpeg")
 
     @app.get("/api/v1/health")
     def health(request: Request):
