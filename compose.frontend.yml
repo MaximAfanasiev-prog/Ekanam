@@ -1,0 +1,3 @@
+services:
+  api:
+    image: lct26-street-falcon-reid:frontend-maxim

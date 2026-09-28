@@ -415,3 +415,15 @@ def test_service_bundle_startup_and_warmup(assets, tmp_path):
     assert len(service.gallery.ids) == 2
     with Image.new("RGB", (16, 16)) as image:
         assert len(service.search(image, BBox(0, 0, 16, 16))["matches"]) == 2
+
+
+def test_search_ui_assets_and_api_coexist(service):
+    with TestClient(create_app(lambda: service)) as client:
+        page = client.get("/")
+        assert page.status_code == 200
+        assert 'id="x"' in page.text and 'id="h"' in page.text
+        assert "frame-ancestors" in page.headers["content-security-policy"]
+        assert client.get("/ui-assets/app.js").status_code == 200
+        assert client.get("/ui-assets/style.css").status_code == 200
+        assert client.get("/ui-assets/missing.js").status_code == 404
+        assert client.get("/api/v1/ready").status_code == 200

@@ -10,6 +10,8 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -69,6 +71,23 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
     )
     app.add_middleware(RequestSizeLimit, limit=MAX_REQUEST_BYTES)
     app.add_middleware(RequestContext)
+
+    ui_dir = Path(__file__).with_name("search_ui")
+    app.mount("/ui-assets", StaticFiles(directory=ui_dir), name="search-ui")
+
+    @app.get("/", include_in_schema=False)
+    def search_page():
+        return FileResponse(
+            ui_dir / "index.html",
+            headers={
+                "Content-Security-Policy": (
+                    "default-src 'self'; script-src 'self'; style-src 'self'; "
+                    "img-src 'self' blob:; connect-src 'self'; "
+                    "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+                ),
+                "Referrer-Policy": "no-referrer",
+            },
+        )
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):

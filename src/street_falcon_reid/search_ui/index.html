@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Street Falcon — поиск автомобиля</title>
+<link rel="stylesheet" href="./ui-assets/style.css">
+<script src="./ui-assets/app.js" defer></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="./"><span class="brand-mark">SF</span> STREET FALCON <span class="brand-caption">/ VEHICLE RE-ID</span></a><div class="status"><span id="status-dot"></span><span id="status-text" role="status">Подключаемся…</span><button id="refresh" type="button" aria-label="Проверить подключение">↻</button></div></header>
+<main>
+<section class="intro"><p class="eyebrow">ПОИСК ПО ВИЗУАЛЬНОМУ СХОДСТВУ</p><h1>Один автомобиль.<br><span>Нужные совпадения.</span></h1><p class="lede">Загрузите кадр и укажите координаты автомобиля.<br>Модель сравнит его с изображениями в галерее.</p></section>
+<form id="search-form" novalidate>
+<div class="workspace">
+<section class="panel image-panel" aria-labelledby="image-title">
+<div class="panel-heading"><h2 id="image-title"><span class="step">01</span> Исходное изображение</h2><span class="tag">JPEG / PNG</span></div>
+<label id="dropzone" class="dropzone" for="image-file">
+<input type="file" id="image-file" accept="image/jpeg,image/png" aria-label="Загрузить изображение">
+<span class="upload-symbol" aria-hidden="true">↑</span><strong>Добавьте кадр с автомобилем</strong><span>Перетащите файл сюда или выберите на компьютере</span><span class="choose-button">Выбрать изображение</span><small>До 10 MiB · до 20 млн пикселей</small>
+</label>
+<div id="preview" class="preview" hidden><div class="canvas-wrap"><canvas id="canvas" aria-label="Исходное изображение с рамкой по введённым координатам"></canvas></div><div class="image-meta"><div><strong id="filename"></strong><span id="dimensions"></span></div><button type="button" id="replace" class="text-button">Заменить файл</button></div></div>
+<p class="footnote">Рамка появится после ввода всех четырёх координат.</p>
+</section>
+<section class="panel controls" aria-labelledby="bbox-title">
+<div class="panel-heading"><h2 id="bbox-title"><span class="step">02</span> Координаты автомобиля</h2></div>
+<p class="control-help">Введите bbox в пикселях исходного кадра.<br>Левый верхний угол — точка <strong>(0, 0)</strong>.</p>
+<div class="bbox-grid">
+<label>X <span>Отступ слева</span><input id="x" name="x" type="number" min="0" step="1" placeholder="—" inputmode="numeric" required></label>
+<label>Y <span>Отступ сверху</span><input id="y" name="y" type="number" min="0" step="1" placeholder="—" inputmode="numeric" required></label>
+<label>W <span>Ширина</span><input id="w" name="w" type="number" min="1" step="1" placeholder="—" inputmode="numeric" required></label>
+<label>H <span>Высота</span><input id="h" name="h" type="number" min="1" step="1" placeholder="—" inputmode="numeric" required></label>
+</div>
+<p id="bbox-help" class="validation" aria-live="polite">Сначала загрузите изображение.</p>
+<div class="top-k-row"><label for="top-k">Количество результатов</label><select id="top-k"><option value="5">5</option><option value="10" selected>10</option><option value="1">1</option></select></div>
+<button id="submit" class="primary" type="submit" disabled>Найти похожие <span aria-hidden="true">↗</span></button>
+<p class="privacy-note">Автомобиль выбираете вы — по координатам.<br>Изображение отправляется только при поиске.</p>
+</section>
+</div>
+</form>
+<div id="error" class="error" role="alert" hidden></div>
+<section class="results panel" aria-labelledby="results-title">
+<div class="panel-heading"><h2 id="results-title"><span class="step">03</span> Результаты поиска</h2><span id="result-count" class="tag">ОЖИДАНИЕ ЗАПРОСА</span></div>
+<div id="result-empty" class="result-empty"><span class="target-symbol" aria-hidden="true">◎</span><div><h3>Совпадения появятся здесь</h3><p>Добавьте изображение и задайте область автомобиля.</p></div></div>
+<div id="loading" class="result-empty" role="status" hidden><span class="spinner" aria-hidden="true"></span><div><h3>Сравниваем с галереей…</h3><p>Изображение обрабатывается. Это может занять несколько секунд.</p></div></div>
+<div id="result-data" hidden><div class="decision-row"><h3 id="decision"></h3><p id="threshold"></p></div><p class="results-note">Оценка показывает визуальное сходство, а не вероятность совпадения. Фотографии галереи пока не подключены.</p><div class="table-scroll"><table><thead><tr><th scope="col">Место</th><th scope="col">ID изображения</th><th scope="col">Сходство</th></tr></thead><tbody id="matches"></tbody></table></div><details><summary>Информация о запросе</summary><dl><dt>ID запроса</dt><dd id="request-id"></dd><dt>Время на сервере</dt><dd id="duration"></dd></dl></details></div>
+</section>
+<footer><span>STREET FALCON</span><span>Поиск по внешнему виду автомобиля · Hackathon 2026</span></footer>
+</main>
+</body></html>

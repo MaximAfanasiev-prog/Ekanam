@@ -202,3 +202,5 @@ readiness checks, startup warmup and a versioned gallery package.
 
 API development and tests: python -m pip install -c requirements-api.lock -e '.[api,test]'.
 Source, tests and documentation only belong in Git; model/data bundles stay outside.
+
+Search frontend: [manual bbox UI and isolated preview](docs/frontend.md).
