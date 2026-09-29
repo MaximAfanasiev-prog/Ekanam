@@ -1,0 +1,31 @@
+services:
+  gateway:
+    image: caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    user: "1009:1009"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    ports:
+      - "0.0.0.0:28443:28443"
+    volumes:
+      - ${LCT_GATEWAY_DIR:?Set gateway directory}/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${LCT_GATEWAY_DIR}/data:/data
+      - ${LCT_GATEWAY_DIR}/config:/config
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    networks:
+      - yolo
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
+networks:
+  yolo:
+    external: true
+    name: maxim-reid-yolo_default
