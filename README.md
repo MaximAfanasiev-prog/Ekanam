@@ -1,6 +1,6 @@
 # LCT 2026 — Street Falcon Vehicle ReID
 
-Приватный репозиторий Engineering Team для задачи повторной идентификации
+Репозиторий Engineering Team для задачи повторной идентификации
 транспортных средств Street Falcon. Для каждого изображения из `test_query.csv`
 система ранжирует автомобили из `test_gallery.csv`, формирует первую десятку и
 может отказаться от ответа, если надёжного совпадения нет.
@@ -208,3 +208,10 @@ Search frontend: [manual bbox UI and isolated preview](docs/frontend.md).
 YOLO online preview and metrics: [integration and verification](docs/yolo-integration.md).
 
 [Full demonstration gallery: scope, validation and rollback](docs/demo-gallery.md).
+
+## Лицензия
+
+Код и веса моделей распространяются под GNU AGPL-3.0 ([`LICENSE`](LICENSE)): модель построена на
+Ultralytics YOLO26, лицензированной под AGPL-3.0. Веб-демо — сетевой сервис, ссылка на его исходный код
+есть в подвале страницы. Лицензия не распространяется на датасет и другие материалы организаторов
+([`NOTICE`](NOTICE)).

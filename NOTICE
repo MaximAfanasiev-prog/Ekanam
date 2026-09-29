@@ -1,0 +1,14 @@
+Ekanam — LCT 2026 Street Falcon Vehicle Re-ID
+Copyright (c) 2026 Engineering Team (Ekanam)
+
+The source code and model weights in this repository are licensed under the
+GNU Affero General Public License v3.0 (see LICENSE). The model is built on
+Ultralytics YOLO26, which is licensed under AGPL-3.0
+(https://ultralytics.com/license).
+
+The web demo is a network service: its source code is this repository,
+https://github.com/MaximAfanasiev-prog/Ekanam, linked from the demo page.
+
+This license does not cover the LCT 2026 Street Falcon dataset or any other
+organizer materials. They remain subject to the organizers' original access
+conditions and are not distributed in this repository.
