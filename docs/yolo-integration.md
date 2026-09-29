@@ -1,5 +1,8 @@
 # YOLO online integration
 
+Current active demo: 11,416 photos; see [demo-gallery.md](demo-gallery.md).
+The initial 750-photo configuration and its source-comparison evidence are described below.
+
 Branch: maxim_yolo_integration, based on maxim_frontend (441e3db).
 Model source: yolo-finetune-metric-learning at 711294d0033421a5c345e0374acd4d2b478ecc44.
 Only reviewed inference behavior was ported; the research branch was not merged.
@@ -123,3 +126,5 @@ Bundle checksums:
 }
 
 BBox input now supports both manual coordinates and mouse/touch rectangle selection; see frontend.md.
+
+An optional 11,416-photo demonstration gallery is documented in [demo-gallery.md](demo-gallery.md). The original 750-photo bundle is retained for reproducibility.

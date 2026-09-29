@@ -74,3 +74,28 @@ def test_yolo_metrics_and_search_contract():
         assert response.json()["decision_score"] is not None
         assert response.json()["matches"][0]["rerank_score"] is not None
         assert client.get("/api/v1/info").json()["ranking_method"].startswith("k-reciprocal")
+
+
+def test_large_gallery_keeps_only_candidate_distances():
+    values = np.random.default_rng(33).normal(size=(2049, 16)).astype(np.float32)
+    values /= np.linalg.norm(values, axis=1, keepdims=True)
+    gallery = GalleryIndex([f"g{i}" for i in range(len(values))], values, "large")
+    service = YoloSearchService(SimpleNamespace(), gallery, {})
+    assert service._distances is None
+    matches, best = service.rank_embedding(values[0])
+    assert len(matches) == 10
+    assert best == pytest.approx(1, abs=1e-6)
+    assert all(np.isfinite(match["rerank_score"]) for match in matches)
+
+
+def test_candidate_distances_preserve_cached_ranking():
+    service = make_service()
+    vector = service.gallery.embeddings[0]
+    cached, cached_score = service.rank_embedding(vector)
+    service._distances = None
+    bounded, bounded_score = service.rank_embedding(vector)
+    assert [m["image_id"] for m in bounded] == [m["image_id"] for m in cached]
+    assert bounded_score == pytest.approx(cached_score)
+    assert [m["rerank_score"] for m in bounded] == pytest.approx(
+        [m["rerank_score"] for m in cached], abs=1e-6
+    )

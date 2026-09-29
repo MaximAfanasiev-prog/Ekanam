@@ -1,6 +1,6 @@
 services:
   api:
-    image: lct26-street-falcon-reid:yolo-maxim
+    image: ${LCT_YOLO_IMAGE:-lct26-street-falcon-reid:yolo-maxim}
     restart: unless-stopped
     read_only: true
     init: true

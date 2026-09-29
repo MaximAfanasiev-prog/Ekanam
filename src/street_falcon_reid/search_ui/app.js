@@ -323,6 +323,11 @@ async function loadMetrics(info) {
     $("model-name").textContent = info.model_name;
     $("runtime-summary").textContent = report.deployed_epochs + " эпох · " + info.gallery_count + " фото в галерее · " + info.embedding_dim + " признаков · " + info.device.toUpperCase();
     $("metrics-scope").textContent = "Качество рецепта обучения · среднее hold-out, seed 7 и 2026 · значения из отчёта коллег";
+    const usage = report.gallery_usage;
+    $("gallery-notice").hidden = !usage;
+    if (usage) {
+      $("gallery-notice").textContent = "Демонстрационная галерея: " + usage.count.toLocaleString("ru-RU") + " фото, включая обучающие кадры и тестовые запросы. Метрики ниже не оценивают эту галерею; загруженное фото может найти собственную копию.";
+    }
     $("metric-cards").replaceChildren();
     const metrics = [
       ["mAP@10", report.holdout_mean["mAP@10"], "Качество первых 10 · re-ranking"],

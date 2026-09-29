@@ -56,31 +56,40 @@ class YoloPredictor:
         self.model_name = "YOLO26-L Re-ID"
         self.threshold_source = "fixed test-derived 25% quantile; not online calibrated"
 
-    @torch.inference_mode()
     def embed_image(self, image: Image.Image, bbox: BBox) -> np.ndarray:
-        bbox.validate(image)
-        with image.crop((bbox.x, bbox.y, bbox.x + bbox.w, bbox.y + bbox.h)) as crop:
-            tensor = (
-                transforms.to_tensor(
-                    transforms.resize(crop.convert("RGB"), [224, 224], antialias=True)
+        return self.embed_images([image], [bbox])[0]
+
+    @torch.inference_mode()
+    def embed_images(self, images: list[Image.Image], boxes: list[BBox]) -> np.ndarray:
+        if not images or len(images) != len(boxes) or len(images) > 32:
+            raise ValueError("Expected 1..32 images and matching boxes.")
+        tensors = []
+        for image, bbox in zip(images, boxes, strict=True):
+            bbox.validate(image)
+            with image.crop((bbox.x, bbox.y, bbox.x + bbox.w, bbox.y + bbox.h)) as crop:
+                tensors.append(
+                    transforms.to_tensor(
+                        transforms.resize(crop.convert("RGB"), [224, 224], antialias=True)
+                    )
                 )
-                .unsqueeze(0)
-                .to(self.device)
-            )
+        tensor = torch.stack(tensors).to(self.device)
         batch = torch.cat([tensor, tensor.flip(-1)])
         feature = self.net.neck(self.net.backbone(batch)).mean((2, 3)).float()
-        vector = functional.normalize(feature[:1] + feature[1:], dim=1)[0].cpu().numpy()
-        if not np.isfinite(vector).all() or np.linalg.norm(vector) <= 0:
-            raise ValueError("Invalid YOLO embedding.")
-        return vector
+        count = len(images)
+        vectors = functional.normalize(feature[:count] + feature[count:], dim=1).cpu().numpy()
+        if not np.isfinite(vectors).all() or np.any(np.linalg.norm(vectors, axis=1) <= 0):
+            raise ValueError("Invalid YOLO embeddings.")
+        return vectors
 
 
 class YoloSearchService(SearchService):
     def __init__(self, predictor, gallery, report):
         super().__init__(predictor, gallery)
-        # Keep gallery distances on CPU once; requests are serialized by the service lock.
+        # Bound memory: cache small galleries, compute only top-100 distances for large ones.
         self._gallery_tensor = torch.from_numpy(gallery.embeddings.copy())
-        self._distances = (2 - 2 * self._gallery_tensor @ self._gallery_tensor.T).clamp_(min=0)
+        self._distances = None
+        if len(gallery.ids) <= 2048:
+            self._distances = (2 - 2 * self._gallery_tensor @ self._gallery_tensor.T).clamp_(min=0)
         self.metrics_report = report
         self.ranking_method = "k-reciprocal top-100; displayed scores are cosine"
 
@@ -127,12 +136,16 @@ class YoloSearchService(SearchService):
 
     @torch.inference_mode()
     def rank_embedding(self, embedding: np.ndarray, top_k: int = 10):
-        query = torch.from_numpy(np.asarray(embedding, dtype=np.float32)).reshape(1, -1)
+        query = torch.from_numpy(np.array(embedding, dtype=np.float32, copy=True)).reshape(1, -1)
         cosine = query @ self._gallery_tensor.T
         count = min(100, len(self.gallery.ids))
         indices = cosine.topk(count, dim=1).indices
         distances = (2 - 2 * cosine).clamp(min=0).gather(1, indices)
-        neighbours = self._distances[indices[:, :, None], indices[:, None, :]]
+        if self._distances is None:
+            candidates = self._gallery_tensor[indices]
+            neighbours = (2 - 2 * candidates @ candidates.transpose(1, 2)).clamp_(min=0)
+        else:
+            neighbours = self._distances[indices[:, :, None], indices[:, None, :]]
         reranked = (1 - _rerank_batch(distances, neighbours, min(10, count), 3, 0.5))[0].numpy()
         if not np.isfinite(reranked).all():
             raise ValueError("Non-finite re-ranking scores.")

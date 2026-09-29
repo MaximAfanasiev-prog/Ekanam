@@ -206,3 +206,5 @@ Source, tests and documentation only belong in Git; model/data bundles stay outs
 Search frontend: [manual bbox UI and isolated preview](docs/frontend.md).
 
 YOLO online preview and metrics: [integration and verification](docs/yolo-integration.md).
+
+[Full demonstration gallery: scope, validation and rollback](docs/demo-gallery.md).

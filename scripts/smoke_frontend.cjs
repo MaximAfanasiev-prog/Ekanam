@@ -7,6 +7,11 @@ const fs = require("node:fs");
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   const base = process.env.BASE_URL || "http://127.0.0.1:27814/";
+  if (process.env.EXPECT_GALLERY_COUNT) {
+    const response = await page.request.get(new URL("api/v1/info", base).href);
+    const info = await response.json();
+    assert.equal(info.gallery_count, Number(process.env.EXPECT_GALLERY_COUNT));
+  }
   await page.addInitScript(() => {
     const original = window.fetch;
     window.fetch = function(url, options) {
@@ -25,6 +30,9 @@ const fs = require("node:fs");
     assert.equal(await page.locator(".metric-card").count(), 4);
     assert.ok((await page.locator("#model-name").textContent()).includes("YOLO"));
     assert.equal(await page.locator("#metric-splits tr").count(), 2);
+    if (process.env.EXPECT_GALLERY_COUNT) {
+      await page.locator("#gallery-notice").waitFor({state:"visible"});
+    }
   }
   assert.equal(await page.locator("#submit").isDisabled(), true);
   if (process.env.SCREENSHOTS) {
