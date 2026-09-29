@@ -41,21 +41,31 @@ def test_yolo_rerank_returns_finite_unique_ranked_results(identical):
     assert result["decision_score"] == pytest.approx(1, abs=1e-6)
 
 
-def test_yolo_decision_uses_best_cosine_not_first_reranked(monkeypatch):
+@pytest.mark.parametrize("top_k", [1, 10])
+@pytest.mark.parametrize("best_returned", [0.7999, 0.8, 0.9])
+def test_yolo_threshold_uses_only_returned_candidates(monkeypatch, top_k, best_returned):
     service = make_service()
-    monkeypatch.setattr(
-        service,
-        "rank_embedding",
-        lambda vector, top_k: (
-            [{"rank": 1, "image_id": "g2", "score": 0.7, "rerank_score": 0.95}],
-            0.9,
-        ),
-    )
-    with Image.new("RGB", (10, 10)) as image:
-        result = service.search(image, BBox(0, 0, 10, 10), 1)
-    assert result["accepted"]
-    assert result["matches"][0]["score"] < result["threshold"]
-    assert result["decision_score"] > result["threshold"]
+    matches = [
+        {"rank": i + 1, "image_id": f"g{i}", "score": 0.7, "rerank_score": 0.99 - i / 100}
+        for i in range(top_k)
+    ]
+    # The best cosine can be last after re-ranking; the global best is outside this top.
+    matches[-1]["score"] = best_returned
+    monkeypatch.setattr(service, "rank_embedding", lambda vector, k: (matches, 0.99))
+    stream = io.BytesIO()
+    Image.new("RGB", (10, 10)).save(stream, format="PNG")
+    with TestClient(create_app(lambda: service)) as client:
+        response = client.post(
+            "/api/v1/search",
+            data={"x": 0, "y": 0, "w": 10, "h": 10, "top_k": top_k},
+            files={"image": ("test.png", stream.getvalue(), "image/png")},
+        )
+    assert response.status_code == 200
+    result = response.json()
+    accepted = best_returned >= service.predictor.threshold
+    assert result["accepted"] is accepted
+    assert result["matches"] == (matches if accepted else [])
+    assert result["decision_score"] == best_returned
 
 
 def test_yolo_metrics_and_search_contract():

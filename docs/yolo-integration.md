@@ -21,9 +21,13 @@ The kernel follows the source, adding zero-distance guards and self-reciprocal
 membership for degenerate tied vectors. Uploaded frames are never detected.
 
 Response score remains cosine. Optional rerank_score supplies the ranking score.
-decision_score is the maximum cosine across the gallery; accepted uses that
-value, not the first re-ranked item's score. The UI explains that card cosine
-scores need not decrease with rank.
+Online decision_score is the maximum cosine within the final requested top_k
+(after re-ranking), not across the entire gallery or only the first result.
+If no candidate reaches the fixed threshold, accepted=false and matches=[];
+the UI displays zero matches without photos. Equality passes. If any candidate
+passes, the complete requested top is retained. Card cosine scores need not
+decrease with rank. This online response policy differs from the historical
+source submission; the raw ranking kernel and reported source metrics are unchanged.
 
 The refusal threshold is frozen at 0.9402066469192505 from the final test run's
 25% quantile. It is not a per-request quantile or a validated online threshold.
@@ -128,3 +132,19 @@ Bundle checksums:
 BBox input now supports both manual coordinates and mouse/touch rectangle selection; see frontend.md.
 
 An optional 11,416-photo demonstration gallery is documented in [demo-gallery.md](demo-gallery.md). The original 750-photo bundle is retained for reproducibility.
+
+## Online threshold response update (2026-09-29)
+
+Standards postflight: research-python / Engineering Standards 0.2.9; no registered
+exceptions. Scope is the isolated demo service and API/UI response contract.
+Ruff and all 86 tests passed, including threshold equality, all-below-threshold,
+a passing later re-ranked candidate, and a global best outside the requested top.
+The existing Starlette/httpx deprecation warning remains; the tests passed.
+Model smoke passed. Chromium verified a real photo returning ten decoded
+thumbnails, followed by an injected HTTP 200 refusal clearing every card,
+then recovery on a real search; bbox, mobile and error checks passed.
+The running 11,416-photo service passed three real queries and 30 decoded
+thumbnail checks. The localhost:8786 tunnel responds ready.
+Diff reviewed: source/tests/docs only; no data, model artifacts or credentials.
+Changes are delivered through the existing integration PR; main is untouched.
+These checks do not establish model quality, GitLab policy gates or production acceptance.

@@ -247,7 +247,7 @@ def test_api_upload_and_pixel_limits(service, monkeypatch):
         assert response.status_code == 413
 
 
-def test_service_refusal_keeps_top_k_and_threshold_equality_is_accepted(service, monkeypatch):
+def test_service_refusal_clears_matches_and_threshold_equality_is_accepted(service, monkeypatch):
     monkeypatch.setattr(service.predictor, "embed_image", lambda *_: service.gallery.embeddings[0])
     image = Image.new("RGB", (1, 1))
     best = service.gallery.search(service.gallery.embeddings[0], 1)[0]["score"]
@@ -256,7 +256,8 @@ def test_service_refusal_keeps_top_k_and_threshold_equality_is_accepted(service,
     monkeypatch.setattr(service.predictor, "threshold", best + 0.01)
     result = service.search(image, BBox(0, 0, 1, 1), 1)
     assert not result["accepted"]
-    assert len(result["matches"]) == 1
+    assert result["matches"] == []
+    assert result["decision_score"] == best
 
 
 def test_api_returns_busy_without_parallel_model_call(assets, service):

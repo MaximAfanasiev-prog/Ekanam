@@ -251,12 +251,16 @@ form.addEventListener("submit", async (event) => {
       throw new Error((messages[response.status] || "Не удалось выполнить поиск.") + (id ? " ID запроса: " + id : ""));
     }
     if (!Array.isArray(result.matches)) throw new Error("Сервис вернул неожиданный ответ.");
-    $("decision").textContent = result.accepted ? "Найдено возможное совпадение" : "Надёжного совпадения нет";
+    $("decision").textContent = result.accepted ? "Найдено возможное совпадение" : "0 совпадений";
     $("threshold").textContent = "Порог модели: " + Number(result.threshold).toFixed(4);
-    if (result.ranking_method && result.ranking_method !== "cosine") {
-      $("threshold").textContent += " · решение по max cosine: " + Number(result.decision_score).toFixed(4);
-      document.querySelector(".results-note").textContent = "Порядок — re-ranking YOLO; оценка на карточке — cosine, а не вероятность. Поэтому оценки могут идти не по убыванию.";
+    if (result.decision_score != null) {
+      $("threshold").textContent += " · лучший cosine в выбранном топе: " + Number(result.decision_score).toFixed(4);
     }
+    document.querySelector(".results-note").textContent = !result.accepted
+      ? "Ни один из кандидатов в выбранном топе не достиг порога косинусного сходства. Совпадений нет."
+      : result.ranking_method && result.ranking_method !== "cosine"
+        ? "Порядок — re-ranking YOLO; оценка на карточке — cosine, а не вероятность. Поэтому оценки могут идти не по убыванию."
+        : "Оценка показывает визуальное сходство, а не вероятность совпадения.";
     for (const match of result.matches) {
       const card = document.createElement("article");
       card.className = "match-card";
@@ -301,7 +305,7 @@ form.addEventListener("submit", async (event) => {
     }
     $("request-id").textContent = result.request_id;
     $("duration").textContent = response.headers.get("x-process-time-ms") ? response.headers.get("x-process-time-ms") + " мс" : "—";
-    $("result-count").textContent = result.matches.length + " РЕЗУЛЬТАТОВ";
+    $("result-count").textContent = result.matches.length ? result.matches.length + " РЕЗУЛЬТАТОВ" : "0 СОВПАДЕНИЙ";
     $("result-data").hidden = false; $("result-empty").hidden = true;
   } catch (exception) {
     error(exception.name === "TimeoutError" ? "Ответ не получен за 45 секунд. Проверьте состояние сервиса и повторите позже." : (exception.message || "Проверьте соединение с сервером."));

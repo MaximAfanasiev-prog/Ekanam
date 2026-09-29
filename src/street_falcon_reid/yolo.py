@@ -121,11 +121,13 @@ class YoloSearchService(SearchService):
             raise SearchBusy("Search is busy. Retry shortly.")
         try:
             embedding = self.predictor.embed_image(image, bbox)
-            matches, best_cosine = self.rank_embedding(embedding, top_k)
+            matches, _ = self.rank_embedding(embedding, top_k)
+            best_cosine = max(match["score"] for match in matches)
+            accepted = best_cosine >= self.predictor.threshold
             return {
-                "accepted": best_cosine >= self.predictor.threshold,
+                "accepted": accepted,
                 "threshold": self.predictor.threshold,
-                "matches": matches,
+                "matches": matches if accepted else [],
                 "model_version": self.predictor.model_version,
                 "gallery_version": self.gallery.version,
                 "decision_score": best_cosine,

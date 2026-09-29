@@ -146,10 +146,13 @@ class SearchService:
         try:
             embedding = self.predictor.embed_image(image, bbox)
             matches = self.gallery.search(embedding, top_k)
+            decision_score = max(match["score"] for match in matches)
+            accepted = decision_score >= self.predictor.threshold
             return {
-                "accepted": matches[0]["score"] >= self.predictor.threshold,
+                "accepted": accepted,
                 "threshold": self.predictor.threshold,
-                "matches": matches,
+                "matches": matches if accepted else [],
+                "decision_score": decision_score,
                 "model_version": self.predictor.model_version,
                 "gallery_version": self.gallery.version,
             }
