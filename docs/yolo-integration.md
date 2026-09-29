@@ -1,5 +1,7 @@
 # YOLO online integration
 
+Latest source review and report update: [030d697](yolo-update-030d697.md).
+
 Current active demo: 11,416 photos; see [demo-gallery.md](demo-gallery.md).
 The initial 750-photo configuration and its source-comparison evidence are described below.
 

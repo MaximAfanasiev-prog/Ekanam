@@ -1,7 +1,7 @@
 {
-  "source_revision": "711294d0033421a5c345e0374acd4d2b478ecc44",
-  "source_url": "https://github.com/ikanam-ai/lct26-street-falcon-reid/blob/711294d0033421a5c345e0374acd4d2b478ecc44/README.md",
-  "source_sha256": "62913ca914d809f5078f540d2024382ebed8d4a6bfded8a0310c984cb68d977c",
+  "source_revision": "030d697e848f5d8dc0295031679d5c18d60484c3",
+  "source_url": "https://github.com/ikanam-ai/lct26-street-falcon-reid/blob/030d697e848f5d8dc0295031679d5c18d60484c3/README.md",
+  "source_sha256": "58fbe9038dfa6eaf18890b7aed38acf110fb95208866e98ce08679f365b1b960",
   "scope": "training_recipe_holdout_not_deployed_checkpoint",
   "evaluation": "Authors' hold-out validation, identity-disjoint 80/20; seeds 7 and 2026",
   "deployed_epochs": 60,
@@ -29,14 +29,36 @@
     }
   ],
   "candidate_metrics": {
-    "F1": 0.886,
-    "TNR": 0.76,
-    "rule": "25% batch refusal; reported hold-out mean"
+    "F1": 0.8858593302218947,
+    "TNR": 0.7610993058506871,
+    "rule": "25% batch refusal; arithmetic hold-out mean for seeds 7 and 2026",
+    "per_split": {
+      "7": {
+        "threshold": 0.8005338609218597,
+        "Precision": 0.883480825958702,
+        "Recall": 0.882179675994109,
+        "F1": 0.8828297715549005,
+        "TNR": 0.7487179487179487,
+        "PR-AUC": 0.9718795330342137
+      },
+      "2026": {
+        "threshold": 0.8066002130508423,
+        "Precision": 0.9013254786450663,
+        "Recall": 0.8767908309455588,
+        "F1": 0.888888888888889,
+        "TNR": 0.7734806629834254,
+        "PR-AUC": 0.9740046158598678
+      }
+    },
+    "all_three_splits_mean_F1": 0.8841950288121897,
+    "source_file": "docs/results/yolo_finetune_refuse_rate.json",
+    "source_sha256": "2079194f69f8a067d6a95f0a53380b142b1100ef007ace7ecb3baf9dd866091f"
   },
   "limitations": [
-    "Reported rounded values; not re-evaluated by integration.",
+    "Ranking values are rounded source README values; candidate aggregates use source JSON; not re-evaluated by integration.",
     "Final 60-epoch model trained on all train identities: no held-out quality score.",
     "No hidden test labels. Live threshold fixed at test-run quantile, not online calibrated.",
     "Candidate F1 uses cosine decision and a batch refusal policy, not reranked top-1."
-  ]
+  ],
+  "evaluation_revision_note": "Source 030d697 aligns mini-val metric calculations with organizer evaluation. Model, preprocessing, re-ranking kernel and saved final artifacts are unchanged."
 }
