@@ -1,217 +1,369 @@
-# LCT 2026 — Street Falcon Vehicle ReID
+# Ekanam — Street Falcon Re-ID: повторная идентификация ТС между камерами
 
-Репозиторий Engineering Team для задачи повторной идентификации
-транспортных средств Street Falcon. Для каждого изображения из `test_query.csv`
-система ранжирует автомобили из `test_gallery.csv`, формирует первую десятку и
-может отказаться от ответа, если надёжного совпадения нет.
+В репозитории два компонента:
+- **решение для проверки** — офлайн-инференс одной командой, дающий `submission.csv`, `embeddings.npy` и
+  `candidates.csv` (разделы [Запуск](#запуск)–[Библиотеки](#библиотеки-версии-внешние-ресурсы));
+- **веб-демо Ekanam** — поиск ТС по фото и bbox в браузере на той же модели ([Веб-демо](#веб-демо-ekanam)).
 
-Государственные регистрационные знаки не используются. Модель работает только
-с визуальным представлением размеченного bounding box автомобиля.
+По кропу транспортного средства (bbox даны организаторами) строится 1280-мерный эмбеддинг. Похожесть двух ТС —
+косинус между эмбеддингами. Для каждого запроса возвращаются 10 ближайших объектов галереи, переупорядоченных
+k-reciprocal re-ranking'ом, и отдельно решение «есть совпадение / отказ».
 
-## Что реализовано
+**Модель:** классификатор Ultralytics `yolo26l-cls` (ImageNet), дообученный на всём `train.csv` с batch-hard
+triplet loss. Веса — 49 МБ.
 
-- безопасная распаковка и проверка исходного архива;
-- identity-disjoint разбиение: идентичности в train и validation не пересекаются;
-- validation query/gallery с межкамерными позитивами и open-set запросами;
-- ResNet-50, ImageNet pretraining, классификационный и batch-hard triplet loss;
-- подбор порога отказа по validation F1;
-- формирование `submission.csv`, `candidates.csv` и `embeddings.npy`;
-- проверка формата результата и упаковка submission;
-- локальная веб-панель с метриками, графиками и просмотром top-10;
-- GPU Docker-окружение и одна команда для полного прогона.
+| | mAP@10 | Rank-1 | Rank-5 | mINP² | F1 кандидатов | TNR |
+|---|---|---|---|---|---|---|
+| Без дообучения (ImageNet `yolo26l-cls`)¹ | 0.109 | 0.125 | 0.220 | 0.087 | 0.778 | 0.73 |
+| Дообученная модель, косинус | 0.625 | 0.613 | 0.821 | 0.579 | 0.886 | 0.76 |
+| **Сабмит: + re-ranking** | **0.661** | **0.626** | **0.816** | **0.579** | **0.886** | **0.76** |
 
-Первый полный прогон на ревизии `93f4287` завершён. На identity-disjoint
-validation он получил `mAP@10 = 0,4523`, `Rank-1 = 0,4837`, `Rank-5 = 0,6463` и
-open-set `F1 = 0,9298`. Это локальная validation, а не результат скрытого
-leaderboard. Конфигурация, ограничения и checksums зафиксированы в
-[`docs/results/baseline-93f4287.md`](docs/results/baseline-93f4287.md).
+Среднее по двум hold-out сплитам (seed 7 и 2026) собственной open-set валидации из `train.csv`, по протоколу
+официального `evaluate.py` (см. [Валидация](#валидация)). На тесте метрики не считались: меток теста у нас нет.
+Кандидаты сабмита — по правилу отказа из раздела [Порог отказа](#порог-отказа).
 
-## Данные
+Это качество **рецепта обучения**: модели обучены на 80% машин своего сплита и проверены на остальных 20%.
+Сдаваемая модель обучена тем же рецептом на всех 100% машин (см. [Данные и обучение](#данные-и-обучение)),
+отложенной части у неё нет, поэтому её собственное качество измерить нельзя.
 
-Архив организатора хранится вне Git. На сервере `home` используется каталог:
+¹ У базовой модели порог кандидатов подобран на самом оцениваемом сплите, то есть F1 и TNR для неё оптимистичны.
+² mINP — по полному косинусному ранжированию из `embeddings.npy`. Re-ranking его не меняет, как и кандидатов:
+они всегда строятся по косинусу (см. [Re-ranking](#re-ranking)).
 
-```text
-/home/andrey/datasets/lct26-street-falcon-reid/
-├── source/dataset.zip
-├── source/evaluate.py
-├── source/example_submission.zip
-├── extracted/
-└── runs/
-```
+## Запуск
 
-Рекомендуемое значение переменной окружения:
+### Одной командой в Docker (офлайн)
 
 ```bash
-export LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid
+FALCON_DATASET_DIR=/путь/к/датасету docker compose up --build
 ```
 
-Архив, изображения, веса, эмбеддинги, результаты и учётные данные запрещено
-добавлять в Git, issue, CI-артефакты и Docker image. Подробности находятся в
-[`docs/data.md`](docs/data.md).
+- `FALCON_DATASET_DIR` — каталог с `test_query.csv`, `test_gallery.csv` и `images/`. По умолчанию `./dataset`.
+- Результат — `./output/`: `submission.csv`, `embeddings.npy`, `candidates.csv` и `run_meta.json`
+  (параметры прогона, порог, число отказов, время). Каталог задаётся переменной `OUTPUT_DIR`.
+- Контейнер запускается с `network_mode: none`. Код, веса и все пакеты лежат в образе, в сеть ничего не ходит.
+  Интернет нужен только на этапе сборки (`pip install`). Готовый образ можно перенести без сети через
+  `docker save falcon-reid-inference | gzip > image.tar.gz` и `docker load < image.tar.gz`, после чего
+  запускать `docker compose up` без `--build`.
+- Нужны NVIDIA GPU и `nvidia-container-toolkit`. Без GPU: `docker compose --profile cpu up --build inference-cpu`.
+- По умолчанию файлы в `output/` создаются от root. Чтобы они принадлежали вам, добавьте
+  `DOCKER_USER=$(id -u):$(id -g)` перед командой.
 
-## Быстрый запуск на A6000
+Проверено на RTX A6000: весь тест (1110 запросов + 750 объектов галереи) обрабатывается за 4 с, вывод контейнера
+совпадает с файлами в корне репозитория байт в байт. На CPU отличия в эмбеддингах не больше 2·10⁻⁴,
+top-1 совпадает у всех запросов.
 
-Сборка окружения:
+### Без Docker
 
 ```bash
-docker compose build baseline
+pip install -r requirements.txt   # Python 3.12, torch 2.6.0+cu124
+export FALCON_DATASET_DIR=/путь/к/датасету
+python -m models.yolo_finetune.predict --checkpoint models/yolo_finetune/weights/yolo26l-cls-reid.pt \
+    --refuse-rate 0.25 --rerank --out output
 ```
 
-Полный цикл от архива до submission:
+Все команды запускаются из корня репозитория.
+
+### Веб-демо Ekanam
+
+Браузерный интерфейс: загружается фото, на нём выделяется bbox ТС (мышью или координатами), сервис возвращает
+до 10 похожих ТС из галереи с превью или отказ, если ни один кандидат не проходит порог. Используются та же модель,
+препроцессинг, отражение и re-ranking, что и в сабмите. Детектора нет, bbox задаёт пользователь.
 
 ```bash
-export GIT_COMMIT=$(git rev-parse HEAD)
-LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid \
-docker compose run --rm baseline run \
-  --archive /data/source/dataset.zip \
-  --data-dir /data/extracted \
-  --run-dir /data/runs/resnet50-baseline \
-  --config configs/baseline.toml
+scripts/setup_demo.sh /путь/к/датасету demo        # один раз: образ, модель, галерея, превью
+docker compose --env-file demo/yolo.env -f compose.yolo.yml up -d
 ```
 
-Команда проверяет SHA-256 архива, распаковывает данные, обучает модель,
-калибрует open-set порог, выполняет инференс и проверяет выходные файлы.
-Повторная распаковка уже проверенного архива пропускается.
+Интерфейс открывается по адресу `http://127.0.0.1:27816/` (порт задаёт `LCT_API_PORT`).
 
-Результат:
+- `setup_demo.sh` собирает образ `Dockerfile.yolo` и офлайн (`--network none`) готовит в `demo/` пакет модели из
+  весов и `embeddings.npy` этого репозитория. Галерея — 750 фото `test_gallery.csv`. Перед этим он проверяет, что
+  онлайн-модель воспроизводит `submission.csv` на реальных кадрах теста (`scripts/smoke_yolo.py`).
+- С флагом `--full` галерея — все 11 416 фото датасета (train + test_query + test_gallery), сборка ~15 минут на
+  CPU. Это демонстрационный режим: в галерее есть кадры обучения и сами запросы, качество на ней не оценивалось.
+- Сервис работает на CPU, без root, с read-only файловой системой. Порог отказа — тот же 0.9402.
+- Данные и превью в Git и в образ не попадают, они создаются в `demo/` из датасета.
 
-```text
-runs/resnet50-baseline/
-├── checkpoint-best.pt
-├── history.jsonl
-├── split.json
-├── validation-report.json
-└── submission/
-    ├── submission.csv
-    ├── candidates.csv
-    ├── embeddings.npy
-    ├── run-metadata.json
-    └── submission.zip
+Подробности: [интеграция модели](docs/yolo-integration.md), [интерфейс](docs/frontend.md),
+[API](docs/backend.md), [галерея 11 416 фото](docs/demo-gallery.md).
+
+## Артефакты
+
+В корне лежат файлы, полученные командой выше: три артефакта сабмита и `run_meta.json` этого прогона
+(параметры, порог 0.9402, 278 отказов, время).
+
+| Файл | Содержимое |
+|---|---|
+| `submission.csv` | `query_id,gallery_id_1,...,gallery_id_10` без заголовка, 1110 строк в порядке `test_query.csv`, всегда 10 кандидатов. |
+| `embeddings.npy` | float32 `[1860, 1280]`: сначала все `test_query.csv`, затем все `test_gallery.csv`, в порядке файлов. Строки L2-нормированы. |
+| `candidates.csv` | `query_id,gallery_id,confidence` с заголовком. Отказ — **нет ни одной строки** для этого `query_id`. |
+
+Оба CSV выводятся из `embeddings.npy` детерминированно, без других данных:
+- `submission.csv` — косинусный top-100 каждого запроса, переупорядоченный k-reciprocal re-ranking'ом
+  (`models/yolo_finetune/rerank.py`), первые 10. Top-1 совпадает с косинусным у 95,5% запросов, в среднем 7,9 из 10
+  id совпадают с косинусным top-10;
+- `candidates.csv` — косинусный top-10 (скалярное произведение нормированных векторов), `confidence` — сам косинус.
+
+Организаторы подтвердили, что `submission.csv` — это результат всего пайплайна, включая re-ranking в пределах
+top-K одного запроса, и mAP@10 считается по нему.
+
+## Архитектура
+
+```
+кадр ──crop по bbox──► RGB-кроп ──squash 224×224──► [x, flip(x)]
+     ──► YOLO26-L backbone ──► Conv1×1 (→1280) ──► GAP ──► сумма по x и flip(x) ──► L2-норма ──► эмбеддинг 1280
+                                                                                        │
+        галерея: FAISS IndexFlatIP (точный косинус) ◄──────────────────────────────────┘
+          ├─► top-100 ──► k-reciprocal re-ranking (только этот запрос + галерея) ──► top-10 ──► submission.csv
+          └─► top-10 ──► top-1 скор ≥ порога ? кандидаты с косинусом ≥ порога : отказ ──► candidates.csv
 ```
 
-## Запуск по этапам
+| Шаг | Где | Что делается |
+|---|---|---|
+| Кроп | `models/yolo_embedding/data.py` | Вырезается ровно bbox организаторов, без отступа. Номерные знаки никак не используются и не распознаются. |
+| Препроцессинг | там же | `squash`: кроп сжимается до 224×224 без сохранения пропорций, ничего не обрезается. Значения в [0, 1], как у Ultralytics-cls. |
+| Сеть | `models/yolo_finetune/model.py` | Все слои `yolo26l-cls` до GAP включительно (backbone + `Conv1×1` классификационной головы). ImageNet-классификатор `Linear(1280→1000)` удалён. |
+| TTA | там же, `FinetunedEmbedder` | Кроп и его зеркальная копия идут одним батчем из двух, их признаки складываются до нормализации. |
+| Поиск | `models/yolo_embedding/retrieval.py` | FAISS `IndexFlatIP` по нормированным эмбеддингам галереи, top-10. |
+| Re-ranking | `models/yolo_finetune/rerank.py` | k-reciprocal re-ranking внутри косинусного top-100 запроса, k1 = 10, k2 = 3, λ = 0.5 (см. [Re-ranking](#re-ranking)). |
+| Отказ | `models/yolo_finetune/predict.py` | Правило `--refuse-rate 0.25` (см. [Порог отказа](#порог-отказа)). |
 
-Локальное окружение Python 3.11:
+Инференс обрабатывает выборку кусками по 512 изображений, поэтому память не растёт с размером теста.
+
+## Данные и обучение
+
+**Данные.** Используется только `train.csv` организаторов: 9556 кадров, 1541 ТС, 96 камер, 4–8 кадров и 2–8 камер
+на одно ТС. Внешних датасетов нет. `test_query.csv` и `test_gallery.csv` в обучении и подборе параметров не
+участвуют.
+
+**`camera_id`** используется только при формировании батчей и в метрике валидации (исключение пар из одной
+камеры, как в официальном протоколе). В модель, функцию потерь и инференс он не попадает.
+
+**Обучение** (`models/yolo_finetune/train.py`):
+- инициализация весами ImageNet `yolo26l-cls`;
+- функция потерь: batch-hard triplet (Hermans et al., 2017), margin 0.3, на признаке до BNNeck.
+  Классификационная CosFace-голова реализована, но в финальной модели выключена (`--w-id 0`): она ухудшала
+  mAP@10 во всех вариантах (таблица ниже);
+- батч P×K = 16 ТС × 4 кадра. Сэмплер (`sampler.py`) распределяет 4 кадра одного ТС по как можно большему числу
+  камер, чтобы triplet чаще учился на межкамерных парах, — именно их оценивает метрика;
+- аугментации на GPU: отражение, лёгкое изменение яркости/контраста/насыщенности (без сдвига оттенка — цвет
+  важен для идентичности), сдвиг до 10 пикселей, random erasing (Zhong et al., 2020);
+- Adam, lr 3.5·10⁻⁴, weight decay 5·10⁻⁴, 5 эпох warmup и косинусное затухание до нуля, bf16, 60 эпох.
+
+**Сдаваемая модель обучена на всём `train.csv`** (1541 ТС, 9556 кадров, флаг `--full-train`): на 25% машин
+больше, чем у моделей, по которым считались метрики. Рецепт и гиперпараметры подобраны на сплите seed 42, а затем
+без изменений проверены на seed 7 и 2026. Раз отложенных данных нет, берётся последняя, 60-я эпоха. Это
+обосновано тем, что на всех трёх сплитах последняя эпоха отстаёт от лучшей не больше чем на 0.005 mAP@10:
+с ~54-й эпохи идёт плато, а learning rate к концу затухает до нуля. Обучение занимает 10 минут на RTX A6000.
+
+Проверки после обучения, без меток теста: `submission.csv` точно воспроизводится re-ranking'ом из
+`embeddings.npy`, а top-1 совпадает с top-1 модели на 80% у 90,5% запросов теста.
+
+**Что пробовали** (mAP@10 на валидации seed 42, без TTA, признак после BNNeck):
+
+| Вариант | Препроцессинг | mAP@10 |
+|---|---|---|
+| Только CosFace | center_crop | 0.425 |
+| CosFace + triplet (веса 1:0.5 / 1:1 / 1:2) | center_crop | 0.472 / 0.473 / 0.490 |
+| ArcFace + triplet | center_crop | 0.499 |
+| CosFace + triplet, без учёта камер в сэмплере | center_crop | 0.476 |
+| CosFace + triplet | squash | 0.502 |
+| Только triplet | center_crop / letterbox | 0.556 / 0.558 |
+| **Только triplet** | **squash** | **0.591** |
+| Только triplet, 40 / 100 эпох | squash | 0.581 / 0.551 |
+
+Затем на выбранной модели проверены варианты инференса (`posteval.py`). Признак до BNNeck лучше, чем после,
+на 2,5–3 п.п. mAP@10 на всех трёх сплитах: без классификационной функции потерь BNNeck не обучается и только
+нормирует признаки. Отражение на инференсе добавляет ещё 1,5–2,5 п.п.
+
+## Валидация
+
+Меток теста нет, поэтому валидация — собственный open-set сплит из `train.csv` (`models/yolo_embedding/make_split.py`),
+устроенный как тест:
+- 20% ТС уходят в валидацию, остальные — в обучение. Множества ТС не пересекаются;
+- кадры каждого валидационного ТС делятся пополам на query и gallery;
+- у 20% валидационных ТС gallery удаляется: их запросы не имеют пары, на них меряется TNR;
+- метрики — копия протокола официального `evaluate.py` (`models/yolo_embedding/metrics.py`): пары из одной камеры
+  исключаются, AP@10 нормируется на min(число пар, 10), решение о кандидатах принимается по top-1.
+  Совпадение проверено запуском самого официального скрипта на наших файлах (`--official`): на всех сохранённых
+  артефактах mini-val числа совпадают точно, `python -m models.yolo_finetune.check_official`.
+
+Сплитов три: seed 42, 7 и 2026. На seed 42 выбирались функция потерь, препроцессинг и лучшая эпоха, поэтому
+его цифра завышена. На seed 7 и 2026 та же конфигурация обучена заново на своей обучающей части — это
+честная оценка.
+
+**Финальная конфигурация** (squash, признак до BNNeck, отражение). mAP (full) и mINP — по косинусу из эмбеддингов:
+
+| Сплит | mAP@10 | Rank-1 | Rank-5 | mAP@10 с re-ranking | Rank-1 с re-ranking | Rank-5 с re-ranking | mAP (full) | mINP |
+|---|---|---|---|---|---|---|---|---|
+| seed 42 (подбор) | 0.642 | 0.623 | 0.829 | 0.689 | 0.660 | 0.826 | 0.658 | 0.593 |
+| seed 7 (hold-out) | 0.624 | 0.612 | 0.812 | 0.664 | 0.628 | 0.808 | 0.643 | 0.577 |
+| seed 2026 (hold-out) | 0.625 | 0.613 | 0.829 | 0.659 | 0.624 | 0.823 | 0.643 | 0.581 |
+| **Среднее hold-out** | **0.625** | **0.613** | **0.821** | **0.661** | **0.626** | **0.816** | **0.643** | **0.579** |
+
+Для сравнения, тот же `yolo26l-cls` без дообучения: mAP@10 0.110 ± 0.002 по трём сплитам. Сравнение десяти
+замороженных моделей YOLOv8-cls / YOLO26-cls — в [`docs/results/yolo-comparison.md`](docs/results/yolo-comparison.md).
+
+## Порог отказа
+
+**Правило.** Модель отказывается отвечать на 25% запросов с самым низким top-1 косинусом. Порог — 0.25-квантиль
+top-1 скоров запросов теста. На тесте это **0.9402**: 278 отказов и 832 ответа. Для принятых запросов в
+`candidates.csv` попадают все кандидаты из top-10 с косинусом не ниже порога. Метки теста при этом не
+используются, только распределение скоров.
+
+**Почему не фиксированный порог.** Порог, максимизирующий F1 на валидации seed 42, равен 0.7756, но он плохо
+переносится даже между нашими сплитами: на seed 7 и 2026 TNR падает с 0.65 до 0.57 и 0.51. На тесте косинусы в
+целом выше: у той же модели медиана top-1 равна 0.958 против 0.908–0.913 на валидации, поэтому порог 0.7756
+отсёк бы только 4% запросов теста. У сдаваемой модели, обученной на большем числе машин, медиана ещё выше
+(0.974), и тот же порог не отсёк бы ни одного запроса. Правило через долю отказов этого не замечает: порог
+сдвигается сам (0.9075 → 0.9402). По данным организаторов, в тесте около 20% запросов без пары, то есть минимум 176 из 222 таких запросов
+получили бы ответ, и TNR был бы не выше ~0.2.
+
+Доля запросов без пары при этом стабильна: 20,0–21,6% на трёх сплитах и около 20% в тесте. Правило через долю
+отказов опирается на неё, а не на абсолютные значения косинуса.
+
+**Почему 25%, а не 20%.** Кроме запросов без пары, ошибкой (FP) является и принятый запрос, у которого верный
+ответ есть, но top-1 неверный. Такие запросы тоже в среднем имеют низкий top-1 скор, поэтому оптимальная доля
+отказов немного выше доли запросов без пары. На трёх сплитах (среднее):
+
+| Доля отказов | F1 | Худший F1 по сплитам | TNR | Precision | Recall | PR-AUC |
+|---|---|---|---|---|---|---|
+| 0.20 | 0.882 | 0.878 | 0.63 | 0.857 | 0.908 | 0.973 |
+| **0.25** | **0.884** | **0.881** | **0.76** | 0.891 | 0.878 | 0.973 |
+| 0.30 | 0.874 | 0.866 | 0.84 | 0.917 | 0.835 | 0.969 |
+
+F1 почти не меняется в диапазоне 0.20–0.27 (максимум 0.884 при 0.25–0.26). Внутри этого диапазона 0.25 даёт
+заметно больший TNR и лучший худший случай по сплитам. На каждом сплите F1 правила отличается от F1 порога,
+подобранного на самом этом сплите, не больше чем на 0.004.
+
+Если реальная доля запросов без пары в тесте сильно отличается от 20%, долю отказов нужно поменять:
+`--refuse-rate` в `docker-compose.yml`. Фиксированный порог задаётся `--threshold`.
+
+Полная кривая по долям 0.10–0.40 и по каждому сплиту — [`docs/results/yolo_finetune_refuse_rate.json`](docs/results/yolo_finetune_refuse_rate.json),
+пересчёт: `python -m models.yolo_finetune.refuse_rate`.
+
+## Re-ranking
+
+Потоковый k-reciprocal re-ranking (Zhong et al., 2017, `models/yolo_finetune/rerank.py`). Исходный алгоритм
+строит матрицу расстояний сразу по всем запросам и галерее, и результат одного запроса зависит от других — при
+потоковой обработке так нельзя. Здесь тот же алгоритм запускается отдельно для каждого запроса на множестве
+{запрос} + его косинусный top-100 из галереи. Используются только сам запрос и фиксированная галерея. Остальная
+галерея остаётся после top-100 в косинусном порядке.
+
+- **Качество:** +3,4–4,7 п.п. mAP@10 на всех трёх сплитах, на hold-out 0.624 → 0.664 и 0.625 → 0.659.
+- **Параметры** k1 = 10, k2 = 3, λ = 0.5, top-100 выбраны на seed 42 (`posteval.py`). На seed 7 и 2026 они
+  применены без изменений.
+- **Время:** около 0,1 с на весь сплит (~900 запросов) на GPU, на тесте незаметно на фоне 4 с инференса.
+  По правилам организаторов поиск и re-ranking в замер скорости не входят.
+- **Кандидаты его не используют.** При доле отказов 0.25 косинусный top-1 лучше отделяет запросы с парой от
+  запросов без пары: средний F1 0.884 против 0.873, TNR 0.76 против 0.73 по трём сплитам. Поэтому
+  `candidates.csv` строится по косинусу, и `confidence` в нём — косинус из `embeddings.npy`.
+
+Отключается убиранием `--rerank` из `CMD` в `Dockerfile` (и из `command` CPU-сервиса в `docker-compose.yml`).
+
+## Скорость
+
+RTX A6000, FP32, batch = 1, медиана (`models/yolo_finetune/benchmark.py`, [`docs/results/yolo_finetune_speed.json`](docs/results/yolo_finetune_speed.json)):
+
+| Этап | GPU | CPU (8 потоков) |
+|---|---|---|
+| Чтение JPEG 1920×1080 и кроп | 7,0 мс | 7,0 мс |
+| Препроцессинг, forward с отражением, L2-норма | 2,8 мс | 16,3 мс |
+| То же без отражения (`--no-flip`) | 2,8 мс | 10,0 мс |
+
+На GPU отражение ничего не стоит при batch = 1: кроп и его копия идут одним батчем. Пропускная способность на
+батче 64 — 1154 изображения в секунду (2181 без отражения). Поиск по галерее и re-ranking в замер не входят.
+
+## Масштабирование
+
+Сейчас поиск — точный `IndexFlatIP` по 750 объектам галереи. Эмбеддинги уже L2-нормированы, поэтому для галереи
+порядка 10⁶ достаточно заменить индекс на приближённый (например, FAISS HNSW или IVF-PQ) без изменения модели.
+Замеров на таком объёме мы не делали.
+
+## Воспроизведение
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e '.[test]'
+export FALCON_DATASET_DIR=/путь/к/датасету
+
+# сплиты валидации: data/ — seed 42, data/splits/ — seed 7 и 2026. Это разметка из train.csv организаторов,
+# поэтому в Git её нет; команды создают её побайтово одинаково (проверено)
+python -m models.yolo_embedding.make_split --seed 42
+python -m models.yolo_embedding.make_split --seed 7 --out-dir data/splits/seed7
+python -m models.yolo_embedding.make_split --seed 2026 --out-dir data/splits/seed2026
+
+# модель на сплите seed 42 (~8 мин на RTX A6000), результат: runs/yolo_finetune/<run-name>/best.pt
+python -m models.yolo_finetune.train --model yolo26l-cls --split-dir data --mode squash \
+    --w-id 0 --w-tri 1 --run-name p1_26l_tronly_squash
+# то же на hold-out сплитах: models/yolo_finetune/experiments/holdout_s7.txt, holdout_s2026.txt
+
+# сдаваемая модель: тот же рецепт на всём train.csv, 60 эпох, последняя эпоха (~10 мин)
+python -m models.yolo_finetune.train --model yolo26l-cls --mode squash --w-id 0 --w-tri 1 \
+    --full-train --run-name full_26l_tronly_squash
+cp runs/yolo_finetune/full_26l_tronly_squash/best.pt models/yolo_finetune/weights/yolo26l-cls-reid.pt
+
+# метрики на валидации (+ официальный evaluate.py) и анализ порога отказа
+python -m models.yolo_finetune.evaluate --embedders runs/yolo_finetune/p1_26l_tronly_squash/best.pt \
+    --splits data --mode squash --rerank --official --out docs/results/yolo_finetune_minival.json
+for s in 7 2026; do
+  python -m models.yolo_finetune.evaluate --embedders runs/yolo_finetune/ho_26l_tronly_squash_s$s/best.pt \
+      --splits data/splits/seed$s --mode squash --official --out runs/yolo_finetune/eval/seed$s.json
+done
+python -m models.yolo_finetune.posteval --out runs/yolo_finetune/eval/posteval.json
+# эмбеддинги теста модели seed 42 (для сравнения распределения скоров) и анализ порога отказа
+python -m models.yolo_finetune.predict --checkpoint runs/yolo_finetune/p1_26l_tronly_squash/best.pt \
+    --refuse-rate 0.25 --out submissions/yolo_finetune/yolo26l-cls-reid
+python -m models.yolo_finetune.refuse_rate
 ```
 
-Подготовка:
+Все эксперименты из таблицы — в `models/yolo_finetune/experiments/*.txt`, запуск очереди:
+`bash models/yolo_finetune/queue.sh models/yolo_finetune/experiments/phase1_a.txt`.
 
-```bash
-street-falcon-reid prepare \
-  --archive "$LCT_DATA_DIR/source/dataset.zip" \
-  --data-dir "$LCT_DATA_DIR/extracted"
+## Структура репозитория
+
+```
+Dockerfile, docker-compose.yml, requirements.txt   офлайн-инференс одной командой
+submission.csv, embeddings.npy, candidates.csv     сабмит (+ run_meta.json прогона)
+models/yolo_finetune/        дообучение и инференс финальной модели
+  weights/yolo26l-cls-reid.pt  веса финальной модели (49 МБ) + SHA256SUMS
+  train.py, model.py, losses.py, sampler.py, data.py   обучение
+  predict.py                   инференс на тесте → три артефакта
+  evaluate.py, posteval.py, refuse_rate.py, benchmark.py   валидация, варианты инференса, порог, скорость
+  check_official.py            сверка наших метрик с официальным evaluate.py
+  rerank.py                    потоковый k-reciprocal re-ranking
+models/yolo_embedding/       базовый пайплайн без дообучения: кропы, метрики, поиск, сплиты
+  weights/yolo26l-cls.pt       ImageNet-веса, из которых строится архитектура (27 МБ)
+docs/results/                метрики и замеры в JSON, сравнение замороженных моделей
+
+Dockerfile.yolo, compose.yolo.yml, requirements-api.lock   веб-демо Ekanam
+scripts/setup_demo.sh        подготовка демо: пакет модели, галерея, превью
+src/street_falcon_reid/      API и интерфейс поиска (api.py, yolo.py, search_ui/), а также код ResNet-бейзлайна
+configs/yolo_metrics.json    метрики модели, которые показывает интерфейс
+scripts/, tests/             подготовка галереи, smoke-проверки и тесты демо
+compose.ip.yml               опциональный HTTPS-шлюз для доступа к демо по IP (docs/ip-access.md)
+
+Dockerfile.baseline, compose.baseline.yml, Dockerfile.api, compose.api*.yml, compose.frontend.yml
+                             первый бейзлайн ResNet-50 и его веб-панель (docs/baseline.md), в решение не входят
 ```
 
-Обучение и калибровка:
+## Библиотеки, версии, внешние ресурсы
 
-```bash
-street-falcon-reid train \
-  --data-dir "$LCT_DATA_DIR/extracted" \
-  --run-dir "$LCT_DATA_DIR/runs/resnet50-baseline" \
-  --config configs/baseline.toml
-```
+**Окружение:** Python 3.12.3, torch 2.6.0+cu124, torchvision 0.21.0+cu124, ultralytics 8.4.163,
+faiss-cpu 1.15.1, numpy 2.5.2, pandas 3.0.6, pillow 12.3.0. Полный список с версиями — `requirements.txt`, он же
+ставится в Docker-образ. Веб-демо ставит тот же `requirements.txt` и HTTP-стек из `requirements-api.lock`
+(FastAPI, uvicorn). Железо: NVIDIA RTX A6000 48 ГБ, 32 CPU.
 
-Инференс и проверка:
+**Внешние ресурсы:**
+- Предобученные веса `yolo26l-cls.pt` (ImageNet-1k) — релиз [`ultralytics/assets` v8.4.0](https://github.com/ultralytics/assets/releases/tag/v8.4.0),
+  SHA256 в `models/yolo_embedding/weights/SHA256SUMS`. Сборка образа проверяет контрольные суммы обоих файлов весов.
+- Других весов и датасетов нет. Суммарный вес моделей, нужных для инференса, — 76 МБ.
 
-```bash
-street-falcon-reid infer \
-  --data-dir "$LCT_DATA_DIR/extracted" \
-  --checkpoint "$LCT_DATA_DIR/runs/resnet50-baseline/checkpoint-best.pt" \
-  --output-dir "$LCT_DATA_DIR/runs/resnet50-baseline/submission" \
-  --config configs/baseline.toml
+**Лицензия:** код и веса моделей распространяются под GNU AGPL-3.0 ([`LICENSE`](LICENSE)): модель построена на
+Ultralytics YOLO26, которая лицензирована под AGPL-3.0 (https://ultralytics.com/license). Веб-демо — сетевой
+сервис, ссылка на его исходный код есть в подвале страницы. Лицензия не распространяется на датасет и другие
+материалы организаторов ([`NOTICE`](NOTICE)).
 
-street-falcon-reid verify \
-  --data-dir "$LCT_DATA_DIR/extracted" \
-  --output-dir "$LCT_DATA_DIR/runs/resnet50-baseline/submission"
-```
-
-## Веб-панель результатов
-
-Панель читает уже сформированные артефакты и не запускает повторное обучение.
-На сервере она публикуется только на loopback-интерфейсе:
-
-```bash
-export LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid
-export LCT_RUN_ID=resnet50-baseline-93f4287
-export LCT_WEB_PORT=27810
-export LOCAL_UID=$(id -u)
-export LOCAL_GID=$(id -g)
-
-docker compose up -d dashboard
-curl --fail http://127.0.0.1:27810/api/health
-```
-
-Для просмотра со своего компьютера откройте SSH-туннель:
-
-```bash
-ssh -N -L 8780:127.0.0.1:27810 home_in
-```
-
-После этого интерфейс доступен по адресу `http://127.0.0.1:8780`. Датасет
-монтируется в контейнер в режиме read-only, а наружу порт не публикуется.
-
-Официальный `evaluate.py` требует скрытый ground truth, поэтому локально им
-нельзя получить финальный leaderboard score. Собственная validation использует
-тот же контракт `mAP@10`, Rank-1, Rank-5 и режим отказа.
-
-## Smoke-проверка
-
-Чтобы проверить весь код без полноценного обучения:
-
-```bash
-street-falcon-reid run \
-  --archive "$LCT_DATA_DIR/source/dataset.zip" \
-  --data-dir "$LCT_DATA_DIR/extracted" \
-  --run-dir "$LCT_DATA_DIR/runs/smoke" \
-  --config configs/smoke.toml
-```
-
-Smoke-конфигурация использует малую подвыборку, случайную инициализацию и два
-шага обучения. Её результаты нельзя сравнивать с рабочим baseline.
-
-## Контракт эксперимента
-
-Каждый результат должен сохранять:
-
-- SHA-256 и версию датасета;
-- split revision и seed;
-- конфигурацию модели и обучения;
-- commit исходного кода;
-- validation metrics и подобранный порог;
-- checksum итогового checkpoint и submission-файлов.
-
-Рабочий профиль репозитория — `research-python`; Engineering Standards закреплены
-на версии `0.2.9`. Веб-панель является внутренним read-only представлением
-артефактов baseline и не меняет исследовательский контракт или статус метрик.
-
-## Online search API (maxim_backend)
-
-POST /api/v1/search accepts a client-provided image and bbox x, y, w, h.
-No vehicle detection is performed. Model and verified gallery load once.
-The separate API container supports bounded uploads, request IDs, JSON errors,
-readiness checks, startup warmup and a versioned gallery package.
-
-- [Backend operation and frontend contract](docs/backend.md)
-- [Baseline handoff contract and gallery export](docs/baseline-contract.md)
-
-API development and tests: python -m pip install -c requirements-api.lock -e '.[api,test]'.
-Source, tests and documentation only belong in Git; model/data bundles stay outside.
-
-Search frontend: [manual bbox UI and isolated preview](docs/frontend.md).
-
-YOLO online preview and metrics: [integration and verification](docs/yolo-integration.md).
-
-[Full demonstration gallery: scope, validation and rollback](docs/demo-gallery.md).
-
-## Лицензия
-
-Код и веса моделей распространяются под GNU AGPL-3.0 ([`LICENSE`](LICENSE)): модель построена на
-Ultralytics YOLO26, лицензированной под AGPL-3.0. Веб-демо — сетевой сервис, ссылка на его исходный код
-есть в подвале страницы. Лицензия не распространяется на датасет и другие материалы организаторов
-([`NOTICE`](NOTICE)).
+**Методы:** batch-hard triplet loss — Hermans et al., *In Defense of the Triplet Loss for Person Re-Identification*,
+2017; BNNeck и набор приёмов обучения — Luo et al., *Bag of Tricks and a Strong Baseline for Deep Person
+Re-identification*, 2019; random erasing — Zhong et al., AAAI 2020; k-reciprocal re-ranking — Zhong et al.,
+CVPR 2017; CosFace — Wang et al., 2018; ArcFace — Deng et al., 2019.

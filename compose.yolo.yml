@@ -1,6 +1,15 @@
+# Web demo. Prepare the bundle and thumbnails once, then start:
+#
+#   scripts/setup_demo.sh /path/to/dataset demo
+#   docker compose --env-file demo/yolo.env -f compose.yolo.yml up -d
+#
+# Open http://127.0.0.1:27816/ (port: LCT_API_PORT).
 services:
   api:
-    image: ${LCT_YOLO_IMAGE:-lct26-street-falcon-reid:yolo-maxim}
+    build:
+      context: .
+      dockerfile: Dockerfile.yolo
+    image: ${LCT_YOLO_IMAGE:-lct26-street-falcon-reid:yolo}
     restart: unless-stopped
     read_only: true
     init: true

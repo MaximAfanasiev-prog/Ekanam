@@ -1,0 +1,79 @@
+{
+ "device": "NVIDIA RTX A6000",
+ "cpu_threads": 8,
+ "batch": 64,
+ "mode": "center_crop",
+ "decode_crop_ms": 7.032119669020176,
+ "models": [
+  {
+   "model": "yolov8n-cls",
+   "latency_gpu_ms": 1.4602304436266422,
+   "latency_cpu_ms": 2.2625033743679523,
+   "fps_gpu": 11573.98107070414,
+   "peak_mem_mb": 301.689453125
+  },
+  {
+   "model": "yolov8s-cls",
+   "latency_gpu_ms": 1.4947415329515934,
+   "latency_cpu_ms": 3.3752508461475372,
+   "fps_gpu": 6394.537573195889,
+   "peak_mem_mb": 473.8603515625
+  },
+  {
+   "model": "yolov8m-cls",
+   "latency_gpu_ms": 1.82246882468462,
+   "latency_cpu_ms": 8.182667195796967,
+   "fps_gpu": 3066.985774982261,
+   "peak_mem_mb": 922.23583984375
+  },
+  {
+   "model": "yolov8l-cls",
+   "latency_gpu_ms": 2.474381122738123,
+   "latency_cpu_ms": 13.495244551450014,
+   "fps_gpu": 1789.9542671537504,
+   "peak_mem_mb": 1342.8798828125
+  },
+  {
+   "model": "yolov8x-cls",
+   "latency_gpu_ms": 3.0349218286573887,
+   "latency_cpu_ms": 18.273100722581148,
+   "fps_gpu": 1261.9684392365282,
+   "peak_mem_mb": 1723.79931640625
+  },
+  {
+   "model": "yolo26n-cls",
+   "latency_gpu_ms": 1.869595143944025,
+   "latency_cpu_ms": 2.514507155865431,
+   "fps_gpu": 10772.73682600808,
+   "peak_mem_mb": 536.94677734375
+  },
+  {
+   "model": "yolo26s-cls",
+   "latency_gpu_ms": 1.9181356765329838,
+   "latency_cpu_ms": 3.84002598002553,
+   "fps_gpu": 5983.246237576474,
+   "peak_mem_mb": 794.12060546875
+  },
+  {
+   "model": "yolo26m-cls",
+   "latency_gpu_ms": 2.100542187690735,
+   "latency_cpu_ms": 6.930703762918711,
+   "fps_gpu": 2849.323134901261,
+   "peak_mem_mb": 1855.927734375
+  },
+  {
+   "model": "yolo26l-cls",
+   "latency_gpu_ms": 2.9456010088324547,
+   "latency_cpu_ms": 9.60787246003747,
+   "fps_gpu": 2168.441944329089,
+   "peak_mem_mb": 1506.0576171875
+  },
+  {
+   "model": "yolo26x-cls",
+   "latency_gpu_ms": 2.897021360695362,
+   "latency_cpu_ms": 19.154232926666737,
+   "fps_gpu": 1341.9215810362384,
+   "peak_mem_mb": 3585.14892578125
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+# tested with Python 3.12.3, CUDA 12.4 wheels
+torch==2.6.0
+torchvision==0.21.0
+ultralytics==8.4.163
+faiss-cpu==1.15.1
+numpy==2.5.2
+pandas==3.0.6
+pillow==12.3.0

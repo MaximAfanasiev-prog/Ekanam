@@ -1,52 +1,34 @@
-services:
-  baseline:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: lct26-street-falcon-reid:baseline
-    gpus: all
-    shm_size: 8gb
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    environment:
-      GIT_COMMIT: ${GIT_COMMIT:-unknown}
-      HOME: /tmp
-      TORCH_HOME: /data/cache/torch
-    volumes:
-      - ${LCT_DATA_DIR:?Set LCT_DATA_DIR to the restricted dataset directory}:/data
+# One-command offline inference:
+#
+#   FALCON_DATASET_DIR=/path/to/dataset docker compose up --build
+#
+# FALCON_DATASET_DIR must contain test_query.csv, test_gallery.csv and images/ (default: ./dataset).
+# Results go to OUTPUT_DIR (default: ./output). The container runs as root unless DOCKER_USER is set, e.g.
+# DOCKER_USER=$(id -u):$(id -g), so that the output files belong to you. Without an NVIDIA GPU use the CPU variant:
+#
+#   docker compose --profile cpu up --build inference-cpu
 
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: lct26-street-falcon-reid:baseline
-    restart: unless-stopped
-    read_only: true
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    environment:
-      HOME: /tmp
-    command:
-      - web
-      - --data-dir
-      - /data/extracted
-      - --run-dir
-      - /data/runs/${LCT_RUN_ID:-resnet50-baseline-93f4287}
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-    ports:
-      - 127.0.0.1:${LCT_WEB_PORT:-27810}:8080
-    volumes:
-      - ${LCT_DATA_DIR:?Set LCT_DATA_DIR to the restricted dataset directory}:/data:ro
-    tmpfs:
-      - /tmp:size=64m,mode=1777
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3)"
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+x-inference: &inference
+  build: .
+  image: falcon-reid-inference:latest
+  user: ${DOCKER_USER:-0:0}
+  network_mode: none  # no internet at run time: weights and packages are inside the image
+  volumes:
+    - ${FALCON_DATASET_DIR:-./dataset}:/data:ro
+    - ${OUTPUT_DIR:-./output}:/output
+
+services:
+  inference:
+    <<: *inference
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  inference-cpu:
+    <<: *inference
+    profiles: [cpu]
+    command: ["--refuse-rate", "0.25", "--rerank", "--device", "cpu"]

@@ -52,6 +52,11 @@ copy metrics.json is checksum-checked with the model/gallery bundle.
 
 ## Runtime and dependencies
 
+Update (final submission branch): Dockerfile.yolo no longer needs the local dependency image. It installs
+requirements.txt (the submission inference environment, the same packages as that image) and then
+requirements-api.lock. scripts/setup_demo.sh builds the bundle from the weights and embeddings committed in
+this repository; see the README section "Веб-демо Ekanam". The notes below describe the original server setup.
+
 A separate CPU service binds 127.0.0.1:27816. Other services at 27812 and 27814
 remain running. Dockerfile.yolo uses Python 3.12.3 and copies only /usr/local
 dependencies from the audited team image, not /app code or weights.

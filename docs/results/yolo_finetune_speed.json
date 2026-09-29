@@ -1,0 +1,17 @@
+{
+ "device": "NVIDIA RTX A6000",
+ "gpu_load_before_start": "0 %, 283 MiB",
+ "cpu_threads": 8,
+ "batch": 64,
+ "mode": "squash",
+ "models": [
+  {
+   "embedder": "models/yolo_finetune/weights/yolo26l-cls-reid.pt",
+   "flip": true,
+   "latency_gpu_ms": 2.799043897539377,
+   "latency_cpu_ms": 16.308358404785395,
+   "fps_gpu": 1154.1563222421262,
+   "peak_mem_mb": 2487.67626953125
+  }
+ ]
+}

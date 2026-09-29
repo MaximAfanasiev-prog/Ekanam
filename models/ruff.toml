@@ -1,0 +1,12 @@
+# models/ (the submitted YOLO Re-ID code) is written to a 120-column limit; everything else as in pyproject.toml
+extend = "../pyproject.toml"
+line-length = 120
+
+[lint]
+# short local lambdas are used on purpose (augmentations, timing helpers)
+extend-ignore = ["E731"]
+
+[lint.per-file-ignores]
+# the timed lambdas are called within the same loop iteration, before `del`, so late binding cannot happen
+"*/benchmark.py" = ["B023", "F821"]
+"yolo_finetune/posteval.py" = ["B023"]

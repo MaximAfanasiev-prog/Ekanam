@@ -1,0 +1,215 @@
+# LCT 2026 — Street Falcon Vehicle ReID: первый бейзлайн ResNet-50
+
+> Это прежний README репозитория, про первый бейзлайн ResNet-50 и его веб-панель. Сдаваемое решение (YOLO26-L)
+> и веб-демо Ekanam описаны в [README.md](../README.md). Бейзлайн собирается из `Dockerfile.baseline`
+> через `compose.baseline.yml`.
+
+Репозиторий Engineering Team для задачи повторной идентификации
+транспортных средств Street Falcon. Для каждого изображения из `test_query.csv`
+система ранжирует автомобили из `test_gallery.csv`, формирует первую десятку и
+может отказаться от ответа, если надёжного совпадения нет.
+
+Государственные регистрационные знаки не используются. Модель работает только
+с визуальным представлением размеченного bounding box автомобиля.
+
+## Что реализовано
+
+- безопасная распаковка и проверка исходного архива;
+- identity-disjoint разбиение: идентичности в train и validation не пересекаются;
+- validation query/gallery с межкамерными позитивами и open-set запросами;
+- ResNet-50, ImageNet pretraining, классификационный и batch-hard triplet loss;
+- подбор порога отказа по validation F1;
+- формирование `submission.csv`, `candidates.csv` и `embeddings.npy`;
+- проверка формата результата и упаковка submission;
+- локальная веб-панель с метриками, графиками и просмотром top-10;
+- GPU Docker-окружение и одна команда для полного прогона.
+
+Первый полный прогон на ревизии `93f4287` завершён. На identity-disjoint
+validation он получил `mAP@10 = 0,4523`, `Rank-1 = 0,4837`, `Rank-5 = 0,6463` и
+open-set `F1 = 0,9298`. Это локальная validation, а не результат скрытого
+leaderboard. Конфигурация, ограничения и checksums зафиксированы в
+[`docs/results/baseline-93f4287.md`](results/baseline-93f4287.md).
+
+## Данные
+
+Архив организатора хранится вне Git. На сервере `home` используется каталог:
+
+```text
+/home/andrey/datasets/lct26-street-falcon-reid/
+├── source/dataset.zip
+├── source/evaluate.py
+├── source/example_submission.zip
+├── extracted/
+└── runs/
+```
+
+Рекомендуемое значение переменной окружения:
+
+```bash
+export LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid
+```
+
+Архив, изображения, веса, эмбеддинги, результаты и учётные данные запрещено
+добавлять в Git, issue, CI-артефакты и Docker image. Единственное исключение — итоговый
+сабмит, который по ТЗ должен лежать в репозитории. Подробности находятся в
+[`docs/data.md`](data.md).
+
+## Быстрый запуск на A6000
+
+Сборка окружения:
+
+```bash
+docker compose -f compose.baseline.yml build baseline
+```
+
+Полный цикл от архива до submission:
+
+```bash
+export GIT_COMMIT=$(git rev-parse HEAD)
+LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid \
+docker compose -f compose.baseline.yml run --rm baseline run \
+  --archive /data/source/dataset.zip \
+  --data-dir /data/extracted \
+  --run-dir /data/runs/resnet50-baseline \
+  --config configs/baseline.toml
+```
+
+Команда проверяет SHA-256 архива, распаковывает данные, обучает модель,
+калибрует open-set порог, выполняет инференс и проверяет выходные файлы.
+Повторная распаковка уже проверенного архива пропускается.
+
+Результат:
+
+```text
+runs/resnet50-baseline/
+├── checkpoint-best.pt
+├── history.jsonl
+├── split.json
+├── validation-report.json
+└── submission/
+    ├── submission.csv
+    ├── candidates.csv
+    ├── embeddings.npy
+    ├── run-metadata.json
+    └── submission.zip
+```
+
+## Запуск по этапам
+
+Локальное окружение Python 3.11:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[test]'
+```
+
+Подготовка:
+
+```bash
+street-falcon-reid prepare \
+  --archive "$LCT_DATA_DIR/source/dataset.zip" \
+  --data-dir "$LCT_DATA_DIR/extracted"
+```
+
+Обучение и калибровка:
+
+```bash
+street-falcon-reid train \
+  --data-dir "$LCT_DATA_DIR/extracted" \
+  --run-dir "$LCT_DATA_DIR/runs/resnet50-baseline" \
+  --config configs/baseline.toml
+```
+
+Инференс и проверка:
+
+```bash
+street-falcon-reid infer \
+  --data-dir "$LCT_DATA_DIR/extracted" \
+  --checkpoint "$LCT_DATA_DIR/runs/resnet50-baseline/checkpoint-best.pt" \
+  --output-dir "$LCT_DATA_DIR/runs/resnet50-baseline/submission" \
+  --config configs/baseline.toml
+
+street-falcon-reid verify \
+  --data-dir "$LCT_DATA_DIR/extracted" \
+  --output-dir "$LCT_DATA_DIR/runs/resnet50-baseline/submission"
+```
+
+## Веб-панель результатов
+
+Панель читает уже сформированные артефакты и не запускает повторное обучение.
+На сервере она публикуется только на loopback-интерфейсе:
+
+```bash
+export LCT_DATA_DIR=/home/andrey/datasets/lct26-street-falcon-reid
+export LCT_RUN_ID=resnet50-baseline-93f4287
+export LCT_WEB_PORT=27810
+export LOCAL_UID=$(id -u)
+export LOCAL_GID=$(id -g)
+
+docker compose -f compose.baseline.yml up -d dashboard
+curl --fail http://127.0.0.1:27810/api/health
+```
+
+Для просмотра со своего компьютера откройте SSH-туннель:
+
+```bash
+ssh -N -L 8780:127.0.0.1:27810 home_in
+```
+
+После этого интерфейс доступен по адресу `http://127.0.0.1:8780`. Датасет
+монтируется в контейнер в режиме read-only, а наружу порт не публикуется.
+
+Официальный `evaluate.py` требует скрытый ground truth, поэтому локально им
+нельзя получить финальный leaderboard score. Собственная validation использует
+тот же контракт `mAP@10`, Rank-1, Rank-5 и режим отказа.
+
+## Smoke-проверка
+
+Чтобы проверить весь код без полноценного обучения:
+
+```bash
+street-falcon-reid run \
+  --archive "$LCT_DATA_DIR/source/dataset.zip" \
+  --data-dir "$LCT_DATA_DIR/extracted" \
+  --run-dir "$LCT_DATA_DIR/runs/smoke" \
+  --config configs/smoke.toml
+```
+
+Smoke-конфигурация использует малую подвыборку, случайную инициализацию и два
+шага обучения. Её результаты нельзя сравнивать с рабочим baseline.
+
+## Контракт эксперимента
+
+Каждый результат должен сохранять:
+
+- SHA-256 и версию датасета;
+- split revision и seed;
+- конфигурацию модели и обучения;
+- commit исходного кода;
+- validation metrics и подобранный порог;
+- checksum итогового checkpoint и submission-файлов.
+
+Рабочий профиль репозитория — `research-python`; Engineering Standards закреплены
+на версии `0.2.9`. Веб-панель является внутренним read-only представлением
+артефактов baseline и не меняет исследовательский контракт или статус метрик.
+
+## Online search API (maxim_backend)
+
+POST /api/v1/search accepts a client-provided image and bbox x, y, w, h.
+No vehicle detection is performed. Model and verified gallery load once.
+The separate API container supports bounded uploads, request IDs, JSON errors,
+readiness checks, startup warmup and a versioned gallery package.
+
+- [Backend operation and frontend contract](backend.md)
+- [Baseline handoff contract and gallery export](baseline-contract.md)
+
+API development and tests: python -m pip install -c requirements-api.lock -e '.[api,test]'.
+Source, tests and documentation only belong in Git; model/data bundles stay outside.
+
+Search frontend: [manual bbox UI and isolated preview](frontend.md).
+
+YOLO online preview and metrics: [integration and verification](yolo-integration.md).
+
+[Full demonstration gallery: scope, validation and rollback](demo-gallery.md).
