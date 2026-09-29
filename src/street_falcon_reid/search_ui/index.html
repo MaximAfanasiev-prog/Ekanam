@@ -2,19 +2,16 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Street Falcon — поиск автомобиля</title>
+<title>Ekanam — поиск автомобиля</title>
 <link rel="stylesheet" href="./ui-assets/style.css">
 <script src="./ui-assets/app.js" defer></script>
 </head>
 <body>
-<header class="topbar"><a class="brand" href="./"><span class="brand-mark">SF</span> STREET FALCON <span class="brand-caption">/ VEHICLE RE-ID</span></a><div class="status"><span id="status-dot"></span><span id="status-text" role="status">Подключаемся…</span><button id="refresh" type="button" aria-label="Проверить подключение">↻</button></div></header>
+<header class="topbar"><a class="brand" href="./"><span class="brand-mark">E</span> Ekanam <span class="brand-caption">/ VEHICLE RE-ID</span></a><div class="status"><span id="status-dot"></span><span id="status-text" role="status">Подключаемся…</span><button id="refresh" type="button" aria-label="Проверить подключение">↻</button></div></header>
 <main>
 <section class="intro"><p class="eyebrow">ПОИСК ПО ВИЗУАЛЬНОМУ СХОДСТВУ</p><h1>Найти автомобиль.<br><span>Среди тысяч кадров.</span></h1><p class="lede">Загрузите кадр и укажите координаты автомобиля.<br>Модель сравнит его с изображениями в галерее.</p></section>
 <section id="model-metrics" class="panel metrics-panel" hidden aria-labelledby="metrics-title">
 <div class="panel-heading"><h2 id="metrics-title"><span class="step">ML</span> Модель и метрики</h2><span id="model-name" class="tag"></span></div>
-<p id="runtime-summary" class="metrics-summary"></p>
-<p id="metrics-scope" class="metrics-summary"></p>
-<p id="gallery-notice" class="gallery-notice" role="note" hidden></p>
 <div id="metric-cards" class="metric-cards"></div>
 <details><summary>Как измеряли качество</summary>
 <p>Метрики ниже описывают рецепт обучения на отложенных автомобилях. Финальные веса обучены на всём train-наборе; отдельной оценки качества этих весов нет. Это не метрики скрытого теста и не точность текущего запроса.</p>
@@ -55,6 +52,6 @@
 <div id="loading" class="result-empty" role="status" hidden><span class="spinner" aria-hidden="true"></span><div><h3>Сравниваем с галереей…</h3><p>Изображение обрабатывается. Это может занять несколько секунд.</p></div></div>
 <div id="result-data" hidden><div class="decision-row"><h3 id="decision"></h3><p id="threshold"></p></div><p class="results-note">Оценка показывает визуальное сходство, а не вероятность совпадения. На фотографиях — автомобили из галереи, вырезанные по исходной разметке.</p><div id="matches" class="match-grid" aria-label="Найденные автомобили"></div><details><summary>Информация о запросе</summary><dl><dt>ID запроса</dt><dd id="request-id"></dd><dt>Время на сервере</dt><dd id="duration"></dd></dl></details></div>
 </section>
-<footer><span>STREET FALCON</span><span>Поиск по внешнему виду автомобиля · Hackathon 2026</span></footer>
+<footer><span>Ekanam</span><span>Поиск по внешнему виду автомобиля · Hackathon 2026</span></footer>
 <dialog id="photo-dialog"><button id="close-photo" type="button" aria-label="Закрыть фотографию">×</button><img id="large-photo" alt="Автомобиль из галереи"><p id="photo-caption"></p></dialog></main>
 </body></html>

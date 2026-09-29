@@ -30,9 +30,6 @@ const fs = require("node:fs");
     assert.equal(await page.locator(".metric-card").count(), 4);
     assert.ok((await page.locator("#model-name").textContent()).includes("YOLO"));
     assert.equal(await page.locator("#metric-splits tr").count(), 2);
-    if (process.env.EXPECT_GALLERY_COUNT) {
-      await page.locator("#gallery-notice").waitFor({state:"visible"});
-    }
   }
   assert.equal(await page.locator("#submit").isDisabled(), true);
   if (process.env.SCREENSHOTS) {
