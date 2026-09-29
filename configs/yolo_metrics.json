@@ -1,0 +1,42 @@
+{
+  "source_revision": "711294d0033421a5c345e0374acd4d2b478ecc44",
+  "source_url": "https://github.com/ikanam-ai/lct26-street-falcon-reid/blob/711294d0033421a5c345e0374acd4d2b478ecc44/README.md",
+  "source_sha256": "62913ca914d809f5078f540d2024382ebed8d4a6bfded8a0310c984cb68d977c",
+  "scope": "training_recipe_holdout_not_deployed_checkpoint",
+  "evaluation": "Authors' hold-out validation, identity-disjoint 80/20; seeds 7 and 2026",
+  "deployed_epochs": 60,
+  "deployed_full_train": true,
+  "ranking": "k-reciprocal top-100, k1=10, k2=3, lambda=0.5",
+  "holdout_mean": {
+    "mAP@10": 0.661,
+    "Rank-1": 0.626,
+    "Rank-5": 0.816
+  },
+  "holdout_splits": [
+    {
+      "seed": 7,
+      "cosine_map10": 0.624,
+      "rerank_map10": 0.664,
+      "rank1": 0.628,
+      "rank5": 0.808
+    },
+    {
+      "seed": 2026,
+      "cosine_map10": 0.625,
+      "rerank_map10": 0.659,
+      "rank1": 0.624,
+      "rank5": 0.823
+    }
+  ],
+  "candidate_metrics": {
+    "F1": 0.886,
+    "TNR": 0.76,
+    "rule": "25% batch refusal; reported hold-out mean"
+  },
+  "limitations": [
+    "Reported rounded values; not re-evaluated by integration.",
+    "Final 60-epoch model trained on all train identities: no held-out quality score.",
+    "No hidden test labels. Live threshold fixed at test-run quantile, not online calibrated.",
+    "Candidate F1 uses cosine decision and a batch refusal policy, not reranked top-1."
+  ]
+}

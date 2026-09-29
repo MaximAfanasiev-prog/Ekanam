@@ -20,6 +20,12 @@ const fs = require("node:fs");
   });
   await page.goto(base);
   await page.waitForFunction(() => document.querySelector("#status-dot").classList.contains("online"));
+  if (process.env.EXPECT_YOLO) {
+    await page.locator("#model-metrics").waitFor({state:"visible"});
+    assert.equal(await page.locator(".metric-card").count(), 4);
+    assert.ok((await page.locator("#model-name").textContent()).includes("YOLO"));
+    assert.equal(await page.locator("#metric-splits tr").count(), 2);
+  }
   assert.equal(await page.locator("#submit").isDisabled(), true);
   if (process.env.SCREENSHOTS) {
     fs.mkdirSync(process.env.SCREENSHOTS, {recursive: true});

@@ -10,6 +10,16 @@
 <header class="topbar"><a class="brand" href="./"><span class="brand-mark">SF</span> STREET FALCON <span class="brand-caption">/ VEHICLE RE-ID</span></a><div class="status"><span id="status-dot"></span><span id="status-text" role="status">Подключаемся…</span><button id="refresh" type="button" aria-label="Проверить подключение">↻</button></div></header>
 <main>
 <section class="intro"><p class="eyebrow">ПОИСК ПО ВИЗУАЛЬНОМУ СХОДСТВУ</p><h1>Найти автомобиль.<br><span>Среди тысяч кадров.</span></h1><p class="lede">Загрузите кадр и укажите координаты автомобиля.<br>Модель сравнит его с изображениями в галерее.</p></section>
+<section id="model-metrics" class="panel metrics-panel" hidden aria-labelledby="metrics-title">
+<div class="panel-heading"><h2 id="metrics-title"><span class="step">ML</span> Модель и метрики</h2><span id="model-name" class="tag"></span></div>
+<p id="runtime-summary" class="metrics-summary"></p>
+<p id="metrics-scope" class="metrics-summary"></p>
+<div id="metric-cards" class="metric-cards"></div>
+<details><summary>Как измеряли качество</summary>
+<p>Метрики ниже описывают рецепт обучения на отложенных автомобилях. Финальные веса обучены на всём train-наборе; отдельной оценки качества этих весов нет. Это не метрики скрытого теста и не точность текущего запроса.</p>
+<div class="table-scroll"><table><thead><tr><th>Сплит</th><th>mAP@10 · cosine</th><th>mAP@10 · re-ranking</th><th>Rank-1</th><th>Rank-5</th></tr></thead><tbody id="metric-splits"></tbody></table></div>
+<p id="threshold-policy"></p><a id="metrics-source" target="_blank" rel="noopener noreferrer">Отчёт авторов модели ↗</a>
+</details></section>
 <form id="search-form" novalidate>
 <div class="workspace">
 <section class="panel image-panel" aria-labelledby="image-title">

@@ -148,6 +148,7 @@ async function checkReady() {
     if (!response.ok) throw new Error();
     const info = await response.json();
     state.ready = true;
+    loadMetrics(info);
     $("status-text").textContent = "На связи · " + info.gallery_count + " изображений";
   } catch {
     state.ready = false; $("status-text").textContent = "Сервис недоступен";
@@ -190,6 +191,10 @@ form.addEventListener("submit", async (event) => {
     if (!Array.isArray(result.matches)) throw new Error("Сервис вернул неожиданный ответ.");
     $("decision").textContent = result.accepted ? "Найдено возможное совпадение" : "Надёжного совпадения нет";
     $("threshold").textContent = "Порог модели: " + Number(result.threshold).toFixed(4);
+    if (result.ranking_method && result.ranking_method !== "cosine") {
+      $("threshold").textContent += " · решение по max cosine: " + Number(result.decision_score).toFixed(4);
+      document.querySelector(".results-note").textContent = "Порядок — re-ranking YOLO; оценка на карточке — cosine, а не вероятность. Поэтому оценки могут идти не по убыванию.";
+    }
     for (const match of result.matches) {
       const card = document.createElement("article");
       card.className = "match-card";
@@ -221,7 +226,7 @@ form.addEventListener("submit", async (event) => {
       meta.className = "match-meta";
       const label = document.createElement("span");
       label.className = "score-label";
-      label.textContent = match.rank === 1 ? "ЛУЧШИЙ КАНДИДАТ" : "СХОДСТВО";
+      label.textContent = match.rank === 1 ? "ПЕРВЫЙ В РЕЙТИНГЕ" : "COSINE-СХОДСТВО";
       const score = document.createElement("strong");
       score.textContent = Number(match.score).toFixed(4);
       const id = document.createElement("span");
@@ -246,3 +251,41 @@ $("photo-dialog").addEventListener("click", (event) => {
   if (event.target === $("photo-dialog")) $("photo-dialog").close();
 });
 render(); checkReady();
+
+async function loadMetrics(info) {
+  try {
+    const response = await fetch(api("metrics"), {signal: AbortSignal.timeout(5000)});
+    if (!response.ok) return;
+    const data = await response.json(), report = data.report;
+    if (!report) { $("model-metrics").hidden = true; return; }
+    $("model-name").textContent = info.model_name;
+    $("runtime-summary").textContent = report.deployed_epochs + " эпох · " + info.gallery_count + " фото в галерее · " + info.embedding_dim + " признаков · " + info.device.toUpperCase();
+    $("metrics-scope").textContent = "Качество рецепта обучения · среднее hold-out, seed 7 и 2026 · значения из отчёта коллег";
+    $("metric-cards").replaceChildren();
+    const metrics = [
+      ["mAP@10", report.holdout_mean["mAP@10"], "Качество первых 10 · re-ranking"],
+      ["Rank-1", report.holdout_mean["Rank-1"], "Верная машина на первом месте"],
+      ["Rank-5", report.holdout_mean["Rank-5"], "Верная машина в первой пятёрке"],
+      ["F1 кандидатов", report.candidate_metrics.F1, "Cosine · правило отказа 25% в батче"]
+    ];
+    for (const [name, value, description] of metrics) {
+      const card = document.createElement("div"); card.className = "metric-card";
+      const label = document.createElement("span"); label.textContent = name;
+      const number = document.createElement("strong"); number.textContent = (value * 100).toFixed(1) + "%";
+      const bar = document.createElement("progress"); bar.max = 1; bar.value = value; bar.setAttribute("aria-label", name);
+      const note = document.createElement("small"); note.textContent = description;
+      card.append(label, number, bar, note); $("metric-cards").append(card);
+    }
+    $("metric-splits").replaceChildren();
+    for (const split of report.holdout_splits) {
+      const row = document.createElement("tr");
+      for (const value of [String(split.seed), split.cosine_map10, split.rerank_map10, split.rank1, split.rank5]) {
+        const cell = document.createElement("td"); cell.textContent = typeof value === "number" ? (value * 100).toFixed(1) + "%" : value; row.append(cell);
+      }
+      $("metric-splits").append(row);
+    }
+    $("threshold-policy").textContent = "Онлайн-порог зафиксирован на " + Number(info.threshold).toFixed(4) + " из тестового прогона коллег. Правило «отказать 25% запросов» онлайн не применяется; этот порог ещё требует калибровки для новых данных.";
+    $("metrics-source").href = report.source_url;
+    $("model-metrics").hidden = false;
+  } catch { $("model-metrics").hidden = true; }
+}

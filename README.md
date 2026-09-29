@@ -204,3 +204,5 @@ API development and tests: python -m pip install -c requirements-api.lock -e '.[
 Source, tests and documentation only belong in Git; model/data bundles stay outside.
 
 Search frontend: [manual bbox UI and isolated preview](docs/frontend.md).
+
+YOLO online preview and metrics: [integration and verification](docs/yolo-integration.md).

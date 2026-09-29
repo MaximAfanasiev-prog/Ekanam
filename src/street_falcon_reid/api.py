@@ -31,6 +31,7 @@ class Match(BaseModel):
     rank: int
     image_id: str
     score: float
+    rerank_score: float | None = None
 
 
 class SearchResponse(BaseModel):
@@ -40,9 +41,17 @@ class SearchResponse(BaseModel):
     matches: list[Match]
     model_version: str
     gallery_version: str
+    decision_score: float | None = None
+    ranking_method: str = "cosine"
 
 
 def _load_service() -> SearchService:
+    if os.getenv("LCT_YOLO_BUNDLE"):
+        from .yolo import YoloSearchService
+
+        return YoloSearchService.load(
+            Path(os.environ["LCT_YOLO_BUNDLE"]), os.getenv("LCT_DEVICE", "cpu")
+        )
     bundle = os.getenv("LCT_GALLERY_DIR")
     if bundle:
         return SearchService.load_bundle(
@@ -127,6 +136,10 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
             raise HTTPException(503, "Search service is not ready.")
         return {
             **ready(request), "embedding_dim": service.predictor.embedding_dim,
+            "model_name": getattr(service.predictor, "model_name", "ResNet baseline"),
+            "ranking_method": getattr(service, "ranking_method", "cosine"),
+            "threshold_source": getattr(service.predictor, "threshold_source", "validation"),
+
             "threshold": service.predictor.threshold,
             "bbox_format": "x,y,w,h", "bbox_source": "client",
             "coordinate_space": "original image pixels, no EXIF rotation",
@@ -146,6 +159,16 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
         if path.is_symlink() or not path.is_file():
             raise HTTPException(404, "Gallery image unavailable.")
         return FileResponse(path, media_type="image/jpeg")
+
+    @app.get("/api/v1/metrics")
+    def metrics(request: Request):
+        service = getattr(request.app.state, "service", None)
+        if service is None:
+            raise HTTPException(503, "Search service is not ready.")
+        return {
+            "model_version": service.predictor.model_version,
+            "report": getattr(service, "metrics_report", None),
+        }
 
     @app.get("/api/v1/health")
     def health(request: Request):
