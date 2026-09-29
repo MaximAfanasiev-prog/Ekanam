@@ -261,6 +261,10 @@ form.addEventListener("submit", async (event) => {
       : result.ranking_method && result.ranking_method !== "cosine"
         ? "Порядок — re-ranking YOLO; оценка на карточке — cosine, а не вероятность. Поэтому оценки могут идти не по убыванию."
         : "Оценка показывает визуальное сходство, а не вероятность совпадения.";
+    if (result.excluded_same_frame) {
+      document.querySelector(".results-note").textContent +=
+        " Исключено автомобилей из этого же кадра: " + result.excluded_same_frame + ".";
+    }
     for (const match of result.matches) {
       const card = document.createElement("article");
       card.className = "match-card";
@@ -330,7 +334,10 @@ async function loadMetrics(info) {
     const usage = report.gallery_usage;
     $("gallery-notice").hidden = !usage;
     if (usage) {
-      $("gallery-notice").textContent = "Демонстрационная галерея: " + usage.count.toLocaleString("ru-RU") + " фото, включая обучающие кадры и тестовые запросы. Метрики ниже не оценивают эту галерею; загруженное фото может найти собственную копию.";
+      $("gallery-notice").textContent = "Демонстрационная галерея: " + usage.count.toLocaleString("ru-RU") + " фото, включая обучающие кадры и тестовые запросы. Метрики ниже не оценивают эту галерею. " +
+        (info.same_frame_filter === "exact_rgb"
+          ? "Точные копии исходного кадра исключаются. Изменённые копии могут остаться."
+          : "Загруженное фото может найти собственную копию.");
     }
     $("metric-cards").replaceChildren();
     const metrics = [

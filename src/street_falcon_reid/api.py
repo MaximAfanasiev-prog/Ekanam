@@ -43,6 +43,7 @@ class SearchResponse(BaseModel):
     gallery_version: str
     decision_score: float | None = None
     ranking_method: str = "cosine"
+    excluded_same_frame: int = 0
 
 
 def _load_service() -> SearchService:
@@ -139,6 +140,7 @@ def create_app(service_factory: Callable[[], SearchService] | None = None) -> Fa
             "model_name": getattr(service.predictor, "model_name", "ResNet baseline"),
             "ranking_method": getattr(service, "ranking_method", "cosine"),
             "threshold_source": getattr(service.predictor, "threshold_source", "validation"),
+            "same_frame_filter": "exact_rgb" if getattr(service, "frame_index", None) else "off",
 
             "threshold": service.predictor.threshold,
             "bbox_format": "x,y,w,h", "bbox_source": "client",
