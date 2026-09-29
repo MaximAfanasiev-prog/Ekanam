@@ -11,7 +11,6 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from street_falcon_reid.frames import ALGORITHM, frame_digest
 from street_falcon_reid.predictor import BBox
 from street_falcon_reid.prepare import sha256_file
 from street_falcon_reid.yolo import YoloSearchService
@@ -50,7 +49,6 @@ def main():
     images_dir = (args.data_dir / "images").resolve()
     started = time.monotonic()
     max_batch_error = 0.0
-    frame_hashes = []
     for start in range(0, len(rows), args.batch_size):
         images, boxes = [], []
         batch_rows = rows[start : start + args.batch_size]
@@ -61,7 +59,6 @@ def main():
                     raise ValueError("Invalid image path.")
                 with Image.open(path) as image:
                     images.append(image.convert("RGB"))
-                frame_hashes.append(frame_digest(images[-1]))
                 boxes.append(BBox(*(int(row[key]) for key in ("x", "y", "w", "h"))))
             batch = service.predictor.embed_images(images, boxes)
             if start == 0:
@@ -98,9 +95,6 @@ def main():
         raise ValueError("Invalid gallery vectors.")
     del vectors
     (args.output / "ids.json").write_text(json.dumps(ids))
-    (args.output / "frames.json").write_text(json.dumps({
-        "schema_version": 1, "algorithm": ALGORITHM, "ids": ids, "hashes": frame_hashes,
-    }))
     for filename in ("checkpoint.pt", "base.pt"):
         shutil.copyfile(args.source_bundle / filename, args.output / filename)
     report = service.metrics_report.copy()
@@ -112,7 +106,6 @@ def main():
         "includes_test_queries": True,
         "evaluated_on_this_gallery": False,
         "self_matches_possible": True,
-        "exact_same_frame_excluded": True,
     }
     (args.output / "metrics.json").write_text(json.dumps(report, indent=2))
     manifest = json.loads((args.source_bundle / "manifest.json").read_text())
@@ -127,9 +120,7 @@ def main():
         "threshold_source": "inherited demo threshold; expanded gallery not calibrated",
         "sha256": {
             name: sha256_file(args.output / name)
-            for name in (
-                "checkpoint.pt", "base.pt", "gallery.npy", "ids.json", "metrics.json", "frames.json"
-            )
+            for name in ("checkpoint.pt", "base.pt", "gallery.npy", "ids.json", "metrics.json")
         },
     }
     evidence = {

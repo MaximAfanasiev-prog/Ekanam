@@ -31,8 +31,8 @@ source submission; the raw ranking kernel and reported source metrics are unchan
 
 The refusal threshold is frozen at 0.9402066469192505 from the final test run's
 25% quantile. It is not a per-request quantile or a validated online threshold.
-New data requires separate calibration. Indexed bundles exclude exact full-frame
-copies before top-100 selection and re-ranking; see [same-frame-filter.md](same-frame-filter.md).
+New data requires separate calibration. No same-frame exclusion is implemented;
+that earlier request still needs a precise definition/source-frame metadata.
 
 ## Metrics and provenance
 

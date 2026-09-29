@@ -13,7 +13,6 @@ import torch.nn.functional as functional
 from PIL import Image
 from torchvision.transforms import functional as transforms
 
-from .frames import FrameIndex
 from .predictor import BBox
 from .prepare import sha256_file
 from .search import GalleryIndex, SearchBusy, SearchService
@@ -84,14 +83,13 @@ class YoloPredictor:
 
 
 class YoloSearchService(SearchService):
-    def __init__(self, predictor, gallery, report, frame_index=None):
+    def __init__(self, predictor, gallery, report):
         super().__init__(predictor, gallery)
         # Bound memory: cache small galleries, compute only top-100 distances for large ones.
         self._gallery_tensor = torch.from_numpy(gallery.embeddings.copy())
         self._distances = None
         if len(gallery.ids) <= 2048:
             self._distances = (2 - 2 * self._gallery_tensor @ self._gallery_tensor.T).clamp_(min=0)
-        self.frame_index = frame_index
         self.metrics_report = report
         self.ranking_method = "k-reciprocal top-100; displayed scores are cosine"
 
@@ -112,12 +110,7 @@ class YoloSearchService(SearchService):
         if gallery.embeddings.shape[1] != 1280 or len(gallery.ids) < 10:
             raise ValueError("YOLO gallery must have 1280 dimensions and at least ten rows.")
         report = json.loads((directory / "metrics.json").read_text())
-        frame_index = None
-        if "frames.json" in manifest["sha256"]:
-            if sha256_file(directory / "frames.json") != manifest["sha256"]["frames.json"]:
-                raise ValueError("YOLO bundle checksum mismatch: frames.json")
-            frame_index = FrameIndex.load(directory / "frames.json", gallery.ids)
-        service = cls(predictor, gallery, report, frame_index)
+        service = cls(predictor, gallery, report)
         service.warmup()
         return service
 
@@ -128,13 +121,9 @@ class YoloSearchService(SearchService):
             raise SearchBusy("Search is busy. Retry shortly.")
         try:
             embedding = self.predictor.embed_image(image, bbox)
-            excluded = self.frame_index.matching(image) if self.frame_index else ()
-            matches, _ = (
-                self.rank_embedding(embedding, top_k, excluded)
-                if excluded else self.rank_embedding(embedding, top_k)
-            )
-            best_cosine = max((match["score"] for match in matches), default=None)
-            accepted = best_cosine is not None and best_cosine >= self.predictor.threshold
+            matches, _ = self.rank_embedding(embedding, top_k)
+            best_cosine = max(match["score"] for match in matches)
+            accepted = best_cosine >= self.predictor.threshold
             return {
                 "accepted": accepted,
                 "threshold": self.predictor.threshold,
@@ -142,39 +131,29 @@ class YoloSearchService(SearchService):
                 "model_version": self.predictor.model_version,
                 "gallery_version": self.gallery.version,
                 "decision_score": best_cosine,
-                "excluded_same_frame": len(excluded),
                 "ranking_method": self.ranking_method,
             }
         finally:
             self._lock.release()
 
     @torch.inference_mode()
-    def rank_embedding(self, embedding: np.ndarray, top_k: int = 10, excluded=()):
+    def rank_embedding(self, embedding: np.ndarray, top_k: int = 10):
         query = torch.from_numpy(np.array(embedding, dtype=np.float32, copy=True)).reshape(1, -1)
         cosine = query @ self._gallery_tensor.T
-        # Remove full-frame duplicates before top-100 selection AND re-ranking.
-        eligible = torch.ones(len(self.gallery.ids), dtype=torch.bool)
-        if excluded:
-            eligible[list(excluded)] = False
-        count = min(100, int(eligible.sum()))
-        if count == 0:
-            return [], None
-        selection = cosine.masked_fill(~eligible[None, :], -torch.inf)
-        indices = selection.topk(count, dim=1).indices
+        count = min(100, len(self.gallery.ids))
+        indices = cosine.topk(count, dim=1).indices
         distances = (2 - 2 * cosine).clamp(min=0).gather(1, indices)
         if self._distances is None:
             candidates = self._gallery_tensor[indices]
             neighbours = (2 - 2 * candidates @ candidates.transpose(1, 2)).clamp_(min=0)
         else:
             neighbours = self._distances[indices[:, :, None], indices[:, None, :]]
-        reranked = (
-            1 - _rerank_batch(distances, neighbours, min(10, count), min(3, count + 1), 0.5)
-        )[0].numpy()
+        reranked = (1 - _rerank_batch(distances, neighbours, min(10, count), 3, 0.5))[0].numpy()
         if not np.isfinite(reranked).all():
             raise ValueError("Non-finite re-ranking scores.")
         scores = np.full(len(self.gallery.ids), -np.inf, dtype=np.float32)
         scores[indices[0].numpy()] = reranked
-        order = np.argsort(-scores, kind="stable")[:min(top_k, count)]
+        order = np.argsort(-scores, kind="stable")[:top_k]
         return [
             {
                 "rank": rank,
@@ -183,4 +162,4 @@ class YoloSearchService(SearchService):
                 "rerank_score": float(scores[index]),
             }
             for rank, index in enumerate(order, 1)
-        ], float(selection.max())
+        ], float(cosine.max())

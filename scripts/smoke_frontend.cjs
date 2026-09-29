@@ -76,10 +76,6 @@ const fs = require("node:fs");
   assert.equal(await page.locator("#error").isHidden(), true);
   if (process.env.QUERY_FILE) {
     assert.equal(searchResult.accepted, true);
-    if (process.env.EXPECT_FRAME_FILTER) {
-      assert.ok(searchResult.excluded_same_frame > 0);
-      assert.ok((await page.locator(".results-note").textContent()).includes("Исключено"));
-    }
     assert.equal(searchResult.matches.length, 10);
   }
   if (searchResult.accepted) {

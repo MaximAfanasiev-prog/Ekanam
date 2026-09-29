@@ -5,7 +5,8 @@ Source partitions are disjoint by image ID: train 9,556, test_query 1,110,
 test_gallery 750. Each CSV supplies the vehicle bbox; no detection is added.
 
 This is not a new held-out evaluation set. The final model was trained on the
-train partition, and query images are now also searchable candidates. Exact full-frame copies are now excluded. Transformed copies and related frames can still appear. The prior hold-out metric cards
+train partition, and query images are now also searchable candidates. Exact
+self-matches and related frames can appear. The prior hold-out metric cards
 describe the training recipe, not this gallery. A visible UI notice states this.
 The original 0.9402 decision threshold is retained only as a demonstration
 setting; it has not been calibrated for the larger candidate pool.
@@ -82,5 +83,3 @@ docker compose --env-file /home/projects/hackathon_2026_lunopopicks/hackathon_ma
 Standards: research-python / Engineering Standards 0.2.9. Same data boundary,
 no new policy exceptions. This work makes no model-quality improvement,
 production acceptance or public-network availability claim.
-
-Exact-frame filtering: [same-frame-filter.md](same-frame-filter.md).
