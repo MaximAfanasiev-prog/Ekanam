@@ -40,7 +40,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-street_falcon_reid = ["static/*.html", "static/*.css", "static/*.js", "search_ui/*.html", "search_ui/*.css", "search_ui/*.js"]
+street_falcon_reid = ["static/*.html", "static/*.css", "static/*.js", "search_ui/*.html", "search_ui/*.css", "search_ui/*.js", "search_ui/*.jpg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
