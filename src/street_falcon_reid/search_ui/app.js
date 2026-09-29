@@ -4,6 +4,7 @@ const names = ["x", "y", "w", "h"];
 const state = {file: null, bitmap: null, ready: false, busy: false, generation: 0};
 const form = $("search-form");
 const context = $("canvas").getContext("2d");
+let selection = null;
 const api = (path) => new URL("api/v1/" + path, document.baseURI);
 
 function error(message) {
@@ -26,7 +27,7 @@ function render() {
   const invalid = Boolean(state.bitmap && names.every((name) => $(name).value !== "") && box.error);
   $("bbox-help").classList.toggle("invalid", invalid);
   names.forEach((name) => $(name).setAttribute("aria-invalid", String(invalid)));
-  $("submit").disabled = state.busy || !state.ready || Boolean(box.error);
+  $("submit").disabled = state.busy || Boolean(selection) || !state.ready || Boolean(box.error);
   if (!state.bitmap) return;
   const scale = Math.min(1, 1400 / state.bitmap.width, 700 / state.bitmap.height);
   const canvas = $("canvas");
@@ -110,6 +111,7 @@ function sourceDimensions(bytes) {
 
 async function choose(file) {
   if (state.busy || !file) return;
+  cancelSelection();
   const generation = ++state.generation;
   state.file = null;
   if (state.bitmap) state.bitmap.close();
@@ -157,6 +159,66 @@ async function checkReady() {
     $("refresh").disabled = false; render();
   }
 }
+// Pointer coordinates refer to the rendered image, including object-fit letterboxing.
+function imagePoint(event, clamp = false) {
+  const rect = $("canvas").getBoundingClientRect();
+  const scale = Math.min(rect.width / state.bitmap.width, rect.height / state.bitmap.height);
+  if (!scale) return null;
+  const left = rect.left + (rect.width - state.bitmap.width * scale) / 2;
+  const top = rect.top + (rect.height - state.bitmap.height * scale) / 2;
+  let x = (event.clientX - left) / scale, y = (event.clientY - top) / scale;
+  if (!clamp && (x < 0 || y < 0 || x > state.bitmap.width || y > state.bitmap.height)) return null;
+  x = Math.max(0, Math.min(state.bitmap.width, Math.round(x)));
+  y = Math.max(0, Math.min(state.bitmap.height, Math.round(y)));
+  return {x, y};
+}
+function cancelSelection() {
+  if (!selection) return;
+  const previous = selection;
+  selection = null;
+  names.forEach((name, i) => {$(name).value = previous.values[i];});
+  if ($("canvas").hasPointerCapture(previous.id)) $("canvas").releasePointerCapture(previous.id);
+  render();
+}
+function updateSelection(event) {
+  if (!selection || event.pointerId !== selection.id) return;
+  const end = imagePoint(event, true);
+  if (!end) return;
+  const x = Math.min(selection.start.x, end.x), y = Math.min(selection.start.y, end.y);
+  const w = Math.abs(end.x - selection.start.x), h = Math.abs(end.y - selection.start.y);
+  if (w < 1 || h < 1) {selection.valid = false; return;}
+  selection.valid = true;
+  [x, y, w, h].forEach((value, i) => {$(names[i]).value = String(value);});
+  clearResults(); error(""); render();
+}
+$("canvas").addEventListener("pointerdown", (event) => {
+  if (state.busy || !state.bitmap || selection || !event.isPrimary || event.button !== 0) return;
+  const start = imagePoint(event);
+  if (!start) return;
+  event.preventDefault();
+  selection = {id: event.pointerId, start, values: names.map(name => $(name).value), valid: false};
+  $("canvas").setPointerCapture(event.pointerId);
+  render();
+});
+$("canvas").addEventListener("pointermove", (event) => {
+  if (!selection || event.pointerId !== selection.id) return;
+  event.preventDefault();
+  updateSelection(event);
+});
+$("canvas").addEventListener("pointerup", (event) => {
+  if (!selection || event.pointerId !== selection.id) return;
+  updateSelection(event);
+  if (!selection.valid) {cancelSelection(); return;}
+  selection = null;
+  if ($("canvas").hasPointerCapture(event.pointerId)) $("canvas").releasePointerCapture(event.pointerId);
+  render();
+});
+$("canvas").addEventListener("pointercancel", cancelSelection);
+$("canvas").addEventListener("lostpointercapture", cancelSelection);
+window.addEventListener("blur", cancelSelection);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") cancelSelection();
+});
 $("image-file").addEventListener("change", (event) => {
   choose(event.target.files[0]); event.target.value = "";
 });
@@ -174,7 +236,7 @@ $("top-k").addEventListener("change", clearResults);
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const box = bbox();
-  if (state.busy || !state.ready || box.error) {render(); return;}
+  if (state.busy || selection || !state.ready || box.error) {render(); return;}
   error(""); clearResults(); setBusy(true);
   try {
     const data = new FormData();

@@ -121,3 +121,5 @@ Bundle checksums:
   "query_csv_sha256": "97e1ed21942bae9c95b1ce2e5d339d9f635bf49fa484367e6b19349789bb9b4c",
   "threshold_source": "fixed test-derived quantile; online calibration pending"
 }
+
+BBox input now supports both manual coordinates and mouse/touch rectangle selection; see frontend.md.

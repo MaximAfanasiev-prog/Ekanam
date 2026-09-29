@@ -8,8 +8,8 @@ No frontend build step or external CDN is required. API requests use the same or
 
 Upload a static JPEG or PNG, then enter integer x, y, w, h in original-image
 pixels. x/y are the top-left corner; w/h are width and height. Fields start
-empty. The preview only draws the entered rectangle; clicking the image does
-not select a box. No detector or automatic bbox calculation is implemented.
+empty. The preview supports both manual fields and pointer dragging. A click alone
+does not replace the current box; dragging creates a new one and fills x/y/w/h. No detector or automatic bbox calculation is implemented.
 The server retains its existing crop/preprocessing contract.
 
 Client checks size (10 MiB), dimensions (20 million pixels), and bbox bounds.
@@ -86,3 +86,21 @@ The thumbnail mount and generated photos must never be included in Git or images
 Additional verification: 75 Python tests, image endpoint access restrictions,
 all ten browser photos decoded, enlargement dialog and desktop/mobile cards.
 Screenshot evidence remains outside Git and CI because it contains gallery data.
+
+## Pointer bbox input (YOLO integration branch)
+
+Draw a rectangle with mouse, pen or touch, in either direction. Coordinates are
+mapped through the actual rendered image area, including object-fit letterboxing,
+to original-image integer pixels. Endpoints are clamped to the image bounds.
+Manual fields remain editable and repaint the rectangle. Escape, pointer cancel
+or lost capture restores the previous coordinates. A click/zero-area gesture
+does not create a box. Search is disabled during drawing or inference; changing
+the box clears stale results. This is user input, not automatic detection.
+
+Verification: scripts/smoke_bbox.cjs on Chromium covers a scaled 1920x1080
+synthetic image, forward/reversed drag, outside-image endpoints, click, Escape,
+manual editing, exact multipart field values, touch drag and touch cancellation.
+The existing frontend smoke also passes with metrics, photos and errors.
+No Python/API/model behavior changed in this UI update.
+Standards postflight: research-python 0.2.9, source-only diff reviewed, no new
+exceptions, no dataset or screenshot artifacts committed; no production claim.

@@ -28,12 +28,12 @@
 <input type="file" id="image-file" accept="image/jpeg,image/png" aria-label="Загрузить изображение">
 <span class="upload-symbol" aria-hidden="true">↑</span><strong>Добавьте кадр с автомобилем</strong><span>Перетащите файл сюда или выберите на компьютере</span><span class="choose-button">Выбрать изображение</span><small>До 10 MiB · до 20 млн пикселей</small>
 </label>
-<div id="preview" class="preview" hidden><div class="canvas-wrap"><canvas id="canvas" aria-label="Исходное изображение с рамкой по введённым координатам"></canvas></div><div class="image-meta"><div><strong id="filename"></strong><span id="dimensions"></span></div><button type="button" id="replace" class="text-button">Заменить файл</button></div></div>
-<p class="footnote">Рамка появится после ввода всех четырёх координат.</p>
+<div id="preview" class="preview" hidden><div class="canvas-wrap"><canvas id="canvas" aria-label="Исходное изображение: выделите автомобиль прямоугольником или введите координаты в полях"></canvas></div><div class="image-meta"><div><strong id="filename"></strong><span id="dimensions"></span></div><button type="button" id="replace" class="text-button">Заменить файл</button></div></div>
+<p class="footnote">Обведите автомобиль мышью или пальцем — или введите координаты справа. Esc отменяет выделение.</p>
 </section>
 <section class="panel controls" aria-labelledby="bbox-title">
 <div class="panel-heading"><h2 id="bbox-title"><span class="step">02</span> Координаты автомобиля</h2></div>
-<p class="control-help">Введите bbox в пикселях исходного кадра.<br>Левый верхний угол — точка <strong>(0, 0)</strong>.</p>
+<p class="control-help">Выделите автомобиль на фото или введите bbox вручную.<br>Левый верхний угол — точка <strong>(0, 0)</strong>.</p>
 <div class="bbox-grid">
 <label>X <span>Отступ слева</span><input id="x" name="x" type="number" min="0" step="1" placeholder="—" inputmode="numeric" required></label>
 <label>Y <span>Отступ сверху</span><input id="y" name="y" type="number" min="0" step="1" placeholder="—" inputmode="numeric" required></label>
@@ -43,7 +43,7 @@
 <p id="bbox-help" class="validation" aria-live="polite">Сначала загрузите изображение.</p>
 <div class="top-k-row"><label for="top-k">Количество результатов</label><select id="top-k"><option value="5">5</option><option value="10" selected>10</option><option value="1">1</option></select></div>
 <button id="submit" class="primary" type="submit" disabled>Найти похожие <span aria-hidden="true">↗</span></button>
-<p class="privacy-note">Автомобиль выбираете вы — по координатам.<br>Изображение отправляется только при поиске.</p>
+<p class="privacy-note">Автомобиль выбираете вы — рамкой или координатами.<br>Изображение отправляется только при поиске.</p>
 </section>
 </div>
 </form>
