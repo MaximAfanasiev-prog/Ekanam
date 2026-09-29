@@ -340,16 +340,6 @@ async function loadMetrics(info) {
       const note = document.createElement("small"); note.textContent = description;
       card.append(label, number, bar, note); $("metric-cards").append(card);
     }
-    $("metric-splits").replaceChildren();
-    for (const split of report.holdout_splits) {
-      const row = document.createElement("tr");
-      for (const value of [String(split.seed), split.cosine_map10, split.rerank_map10, split.rank1, split.rank5]) {
-        const cell = document.createElement("td"); cell.textContent = typeof value === "number" ? (value * 100).toFixed(1) + "%" : value; row.append(cell);
-      }
-      $("metric-splits").append(row);
-    }
-    $("threshold-policy").textContent = "Онлайн-порог зафиксирован на " + Number(info.threshold).toFixed(4) + " из тестового прогона коллег. Правило «отказать 25% запросов» онлайн не применяется; этот порог ещё требует калибровки для новых данных.";
-    $("metrics-source").href = report.source_url;
     $("model-metrics").hidden = false;
   } catch { $("model-metrics").hidden = true; }
 }
