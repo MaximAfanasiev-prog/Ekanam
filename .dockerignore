@@ -1,25 +1,36 @@
+# One build context for Dockerfile (submission inference), Dockerfile.yolo (web demo), Dockerfile.api and
+# Dockerfile.baseline. Only code, dependency files and the two weight files inference needs go in.
 .git
 .github
 .venv
+.venv*/
 __pycache__
+**/__pycache__
 .pytest_cache
 .ruff_cache
+node_modules
 data
 dataset
 datasets
 artifacts
 checkpoints
+output
 outputs
 results
 runs
+demo
+submissions
 *.zip
 *.tar
 *.tar.gz
-*.pt
-*.pth
 *.npy
+*.csv
 .env*
 credentials.json
-
-
-.venv*/
+# models/yolo_finetune/weights/yolo26l-cls-reid.pt is the fine-tuned model; its architecture is built from the
+# ImageNet checkpoint yolo26l-cls.pt, so that one is needed too
+*.pt
+*.pth
+!models/yolo_finetune/weights/yolo26l-cls-reid.pt
+!models/yolo_embedding/weights/yolo26l-cls.pt
+models/yolo_finetune/experiments/

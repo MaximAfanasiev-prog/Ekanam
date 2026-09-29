@@ -1,0 +1,5 @@
+# Phase 1 (tuning on mini-val seed 42, yolo26l-cls; seeds 7/2026 are held out from all choices)
+p1_26l_cos_w1-1       --model yolo26l-cls --split-dir data --id-loss cosface --w-id 1 --w-tri 1
+p1_26l_cos_w1-2       --model yolo26l-cls --split-dir data --id-loss cosface --w-id 1 --w-tri 2
+p1_26l_cos_idonly     --model yolo26l-cls --split-dir data --id-loss cosface --w-id 1 --w-tri 0
+p1_26l_cos_w1-1_nocam --model yolo26l-cls --split-dir data --id-loss cosface --w-id 1 --w-tri 1 --no-camera-aware

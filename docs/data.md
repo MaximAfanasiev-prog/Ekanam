@@ -44,6 +44,23 @@ The verified source archive has SHA-256
 The preparation command refuses an archive with another checksum and records the
 validated table and image counts in `extracted/.prepared.json`.
 
+## Submission artifacts
+
+The hackathon brief requires the final submission to live in the repository and the
+inference to run offline with all weights supplied. These files are therefore
+committed, and only these:
+
+| Path | Why |
+|---|---|
+| `submission.csv`, `candidates.csv`, `embeddings.npy`, `run_meta.json` | required submission outputs (test image IDs, no images or labels) and their run record |
+| `models/yolo_finetune/weights/yolo26l-cls-reid.pt` | the fine-tuned model |
+| `models/yolo_embedding/weights/yolo26l-cls.pt` | public Ultralytics ImageNet weights the model architecture is built from |
+
+Weight checksums are in `SHA256SUMS` next to them and are verified at image build.
+Images, organizer tables, validation splits (recreated by
+`python -m models.yolo_embedding.make_split`), thumbnails and demo bundles
+(`scripts/setup_demo.sh`) stay outside Git.
+
 ## Validation rule
 
 Split validation by `vehicle_id`, not by image. Build query/gallery pairs across

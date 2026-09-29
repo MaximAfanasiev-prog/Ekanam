@@ -7,7 +7,9 @@ State a standards preflight with the `research-python` profile, pinned Engineeri
 Standards release, affected environment, data boundary, registered exceptions
 and required evidence. Work in an isolated branch and deliver changes through a
 Pull Request. Do not commit organizer data, images, embeddings, model weights,
-credentials or password-protected source links.
+credentials or password-protected source links. The only exception is the final
+submission the hackathon brief requires inside the repository, listed in
+`docs/data.md` ("Submission artifacts"); do not add anything else under it.
 
 Use identity-disjoint validation for model claims. Record dataset version,
 checksum, split revision, configuration and metric outputs for every result.

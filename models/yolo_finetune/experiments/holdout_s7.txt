@@ -1,0 +1,3 @@
+# Held-out check (seed 7): best config (triplet-only, squash, 60 ep) vs center_crop baseline on the same split
+ho_26l_tronly_squash_s7 --model yolo26l-cls --split-dir data/splits/seed7 --id-loss cosface --w-id 0 --w-tri 1 --mode squash
+ho_26l_tronly_s7        --model yolo26l-cls --split-dir data/splits/seed7 --id-loss cosface --w-id 0 --w-tri 1

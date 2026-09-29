@@ -1,0 +1,2 @@
+# Phase 1: squash + triplet-only, shorter schedule (60 ep = 0.5908, 100 ep = 0.5512)
+p1_26l_tronly_squash_e40 --model yolo26l-cls --split-dir data --id-loss cosface --w-id 0 --w-tri 1 --mode squash --epochs 40

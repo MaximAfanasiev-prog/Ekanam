@@ -1,0 +1,27 @@
+{
+ "model": "yolo26l-cls",
+ "checkpoint": "models/yolo_finetune/weights/yolo26l-cls-reid.pt",
+ "trained_epochs": 60,
+ "mode": "squash",
+ "feature": "feat",
+ "flip": true,
+ "rerank": {
+  "k1": 10,
+  "k2": 3,
+  "lam": 0.5,
+  "top_k": 100
+ },
+ "margin": 0.0,
+ "threshold": 0.9402066469192505,
+ "refuse_rate": 0.25,
+ "n_query": 1110,
+ "n_gallery": 750,
+ "embedding_dim": 1280,
+ "candidates_from": "cosine",
+ "rerank_changed_top10_rows": 1108,
+ "queries_accepted": 832,
+ "queries_refused": 278,
+ "candidate_rows": 876,
+ "end_to_end_seconds": 4.1,
+ "end_to_end_img_per_s": 453.8
+}

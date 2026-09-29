@@ -29,8 +29,8 @@ export GIT_COMMIT=$(git rev-parse HEAD)
 export LOCAL_UID=$(id -u)
 export LOCAL_GID=$(id -g)
 
-docker compose build baseline
-docker compose run --rm baseline run \
+docker compose -f compose.baseline.yml build baseline
+docker compose -f compose.baseline.yml run --rm baseline run \
   --archive /data/source/dataset.zip \
   --data-dir /data/extracted \
   --run-dir /data/runs/resnet50-baseline \
@@ -67,15 +67,15 @@ export LCT_WEB_PORT=27810
 export LOCAL_UID=$(id -u)
 export LOCAL_GID=$(id -g)
 
-docker compose up -d dashboard
-docker compose ps dashboard
+docker compose -f compose.baseline.yml up -d dashboard
+docker compose -f compose.baseline.yml ps dashboard
 curl --fail http://127.0.0.1:27810/api/health
 ```
 
 Остановить панель без удаления результатов:
 
 ```bash
-docker compose stop dashboard
+docker compose -f compose.baseline.yml stop dashboard
 ```
 
 Порт привязан к `127.0.0.1`; внешний доступ возможен только через отдельный
@@ -87,7 +87,7 @@ gallery нет ground truth, поэтому top-10 нельзя маркиров
 ## Повторный инференс
 
 ```bash
-docker compose run --rm baseline infer \
+docker compose -f compose.baseline.yml run --rm baseline infer \
   --data-dir /data/extracted \
   --checkpoint /data/runs/resnet50-baseline/checkpoint-best.pt \
   --output-dir /data/runs/resnet50-baseline/submission \

@@ -1,16 +1,16 @@
-# Reuse only Python dependencies from the audited team inference image.
-# Final stage contains no model weights or dataset.
-ARG YOLO_DEPENDENCY_IMAGE=falcon-reid-inference:integration-96b97299
-FROM ${YOLO_DEPENDENCY_IMAGE} AS dependencies
+# Web demo (Ekanam search UI + API) on the final YOLO Re-ID model.
+# Python dependencies are the same as in the submission inference image (Dockerfile): requirements.txt, then the
+# HTTP stack from requirements-api.lock. The image contains no model weights or dataset: the model/gallery bundle
+# and thumbnails are mounted at run time (scripts/setup_demo.sh, compose.yolo.yml).
 FROM python:3.12.3-slim@sha256:afc139a0a640942491ec481ad8dda10f2c5b753f5c969393b12480155fe15a63
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=dependencies /usr/local /usr/local
 WORKDIR /workspace
-ENV PYTHONPATH=/workspace/src PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+ENV PYTHONPATH=/workspace/src PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
     OMP_NUM_THREADS=1 HOME=/tmp YOLO_OFFLINE=1 YOLO_CONFIG_DIR=/tmp MPLCONFIGDIR=/tmp
-COPY requirements-api.lock ./
-RUN python -m pip install --no-cache-dir -r requirements-api.lock
+COPY requirements.txt requirements-api.lock ./
+RUN python -m pip install --no-cache-dir -r requirements.txt \
+    && python -m pip install --no-cache-dir -r requirements-api.lock
 COPY src ./src
 USER 1009:1009
 ENTRYPOINT ["python", "-m", "uvicorn"]

@@ -1,0 +1,2 @@
+# Phase 1: letterbox preprocessing vs squash (0.5908) / center_crop (0.5555), triplet-only, 60 ep
+p1_26l_tronly_letterbox --model yolo26l-cls --split-dir data --id-loss cosface --w-id 0 --w-tri 1 --mode letterbox
